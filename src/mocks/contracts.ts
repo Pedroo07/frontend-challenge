@@ -1,4 +1,4 @@
-import type { NftCollectionId, NftSort } from '@/lib/catalog-options'
+import type { NftCollectionId, NftNetwork, NftSort } from '@/lib/catalog-options'
 
 export type HealthResponse = {
   status: 'ok'
@@ -19,6 +19,7 @@ export type Nft = {
   id: string
   name: string
   collection: { id: NftCollectionId; name: string }
+  network: NftNetwork
   creator: string
   description: string
   imageUrl: string
@@ -38,6 +39,9 @@ export type NftListParams = {
   collection?: NftCollectionId
   available?: boolean
   sort: NftSort
+  minPrice: number
+  maxPrice: number
+  network?: NftNetwork
   page: number
   pageSize: number
 }
@@ -57,4 +61,45 @@ export type NftUpdatedEvent = {
   priceEth: string
   available: number
   version: number
+}
+
+export type User = {
+  id: string
+  name: string
+  email: string
+  avatarUrl?: string
+}
+
+export type AuthResponse = {
+  user: User
+  token: string
+}
+
+export type SessionResponse = {
+  user: User
+}
+
+export type FavoritesResponse = {
+  items: string[]
+}
+
+export type FavoriteMutationResponse = {
+  success: boolean
+  nftId: string
+  items: string[]
+}
+
+export type AccountResponse = {
+  user: User
+}
+
+export type LoginPayload = {
+  email: string
+  password?: string
+}
+
+export type RegisterPayload = {
+  name: string
+  email: string
+  password?: string
 }

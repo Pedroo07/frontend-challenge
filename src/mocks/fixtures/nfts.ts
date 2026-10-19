@@ -1,6 +1,6 @@
 import type { Nft, NftEdition, NftListItem } from '../contracts'
 
-type FixtureInput = Omit<Nft, 'editions' | 'version'> & {
+type FixtureInput = Omit<Nft, 'editions' | 'version' | 'network'> & {
   priceEth: string
   available: number
   editionPriceEth?: string
@@ -29,7 +29,13 @@ function makeNft(input: FixtureInput): Nft {
     },
   ]
 
-  return { ...nft, editions, version: nft.id === 'nft-aurora-017' ? 2 : 1 }
+  const network = nft.collection.id === 'aurora'
+    ? 'ethereum'
+    : nft.collection.id === 'flora'
+      ? 'polygon'
+      : 'solana'
+
+  return { ...nft, network, editions, version: nft.id === 'nft-aurora-017' ? 2 : 1 }
 }
 
 export const nftFixtures: Nft[] = [
