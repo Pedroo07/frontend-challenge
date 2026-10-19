@@ -31,7 +31,7 @@ async function waitForServer() {
 
 function runPlaywright() {
   return new Promise((resolve, reject) => {
-    const runner = spawn(process.execPath, ['./node_modules/@playwright/test/cli.js', 'test'], {
+    const runner = spawn(process.execPath, ['./node_modules/@playwright/test/cli.js', 'test', ...process.argv.slice(2)], {
       stdio: 'inherit',
       env: process.env,
     })

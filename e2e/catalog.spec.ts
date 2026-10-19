@@ -8,11 +8,11 @@ test('o catálogo apresenta NFTs vindos da API simulada', async ({ page }) => {
   const params = new URL(listRequest.url()).searchParams
   expect(params.get('sort')).toBe('newest')
   expect(params.get('page')).toBe('1')
-  expect(params.get('pageSize')).toBe('6')
+  expect(params.get('pageSize')).toBe('9')
 
   await expect(page.getByRole('heading', { name: 'Peças em destaque' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Ver detalhes de Aurora #017' })).toBeVisible()
-  await expect(page.getByRole('link', { name: /Ver detalhes de / })).toHaveCount(6)
+  await expect(page.getByRole('link', { name: /Ver detalhes de / })).toHaveCount(9)
 })
 
 test('busca, coleção, disponibilidade e ordenação atualizam a URL e a consulta', async ({ page }) => {
@@ -23,7 +23,7 @@ test('busca, coleção, disponibilidade e ordenação atualizam a URL e a consul
   })
 
   await page.goto('/?page=2')
-  await expect(page.getByRole('link', { name: 'Ver detalhes de Aurora #013' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Ver detalhes de Aurora #009' })).toBeVisible()
   await page.getByRole('combobox', { name: 'Coleção' }).selectOption('aurora')
   await expect(page).toHaveURL(/collection=aurora/)
   await expect(page).toHaveURL(/page=1/)
@@ -53,7 +53,7 @@ test('paginação, histórico e refresh restauram o catálogo', async ({ page })
   await expect(page.getByRole('link', { name: 'Ver detalhes de Aurora #017' })).toBeVisible()
   await page.getByRole('button', { name: 'Próxima página' }).click()
   await expect(page).toHaveURL(/page=2/)
-  await expect(page.getByRole('link', { name: 'Ver detalhes de Aurora #013' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Ver detalhes de Aurora #009' })).toBeVisible()
 
   await page.goBack()
   await expect(page).toHaveURL(/page=1/)
@@ -61,9 +61,9 @@ test('paginação, histórico e refresh restauram o catálogo', async ({ page })
 
   await page.goForward()
   await expect(page).toHaveURL(/page=2/)
-  await expect(page.getByRole('link', { name: 'Ver detalhes de Aurora #013' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Ver detalhes de Aurora #009' })).toBeVisible()
   await page.reload()
-  await expect(page.getByRole('link', { name: 'Ver detalhes de Aurora #013' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Ver detalhes de Aurora #009' })).toBeVisible()
 
   const search = page.getByRole('searchbox', { name: 'Buscar NFTs' })
   await search.fill('Aurora')

@@ -5,7 +5,7 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**', 'src/routeTree.gen.ts', 'public/mockServiceWorker.js'] },
+  { ignores: ['dist/**', 'node_modules/**', 'src/routeTree.gen.ts', 'public/mockServiceWorker.js', 'playwright-report/**', 'test-results/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
