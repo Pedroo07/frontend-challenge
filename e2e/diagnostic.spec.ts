@@ -4,7 +4,7 @@ test('REST e Socket.IO simulados chegam à interface sem falha de execução', a
   const pageErrors: string[] = []
   page.on('pageerror', (error) => pageErrors.push(error.message))
 
-  await page.goto('/')
+  await page.goto('/diagnostic')
 
   await expect(page.getByTestId('msw-status')).toHaveText('Pronto · interceptação ativa')
   await expect(page.getByTestId('rest-result')).toContainText('nft-marketplace-mock-api')
