@@ -106,6 +106,7 @@ test.describe('Autenticação, sessão e favoritos', () => {
     await page.getByLabel('E-mail').fill('lucas@exemplo.com')
     await page.getByLabel('Senha').fill('Password123!')
     await page.getByRole('button', { name: 'Entrar' }).click()
+    await expect(page).toHaveURL(/\/(?:\?.*)?$/)
     await expect(page.getByTestId('user-name')).toHaveText('Lucas Costa')
 
     await page.goto('/nfts/nft-aurora-017')
@@ -122,6 +123,7 @@ test.describe('Autenticação, sessão e favoritos', () => {
     await page.getByLabel('E-mail').fill('ana@exemplo.com')
     await page.getByLabel('Senha').fill('Password123!')
     await page.getByRole('button', { name: 'Entrar' }).click()
+    await expect(page).toHaveURL(/\/(?:\?.*)?$/)
     await expect(page.getByTestId('user-name')).toHaveText('Ana Silva')
 
     await page.goto('/nfts/nft-aurora-017')
