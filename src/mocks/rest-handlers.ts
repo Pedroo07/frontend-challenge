@@ -1,7 +1,8 @@
 import { http, HttpResponse } from 'msw'
-import type { HealthResponse, NftListParams } from './contracts'
-import { nftFixtures, summarizeNft } from './fixtures/nfts'
+import type { HealthResponse, NftListParams, NftUpdatedEvent } from './contracts'
+import { nftFixtures, summarizeNft, updateNftFixture } from './fixtures/nfts'
 import { mockStore } from './mock-store'
+import { emitNftUpdateToClients } from './socket-handlers'
 
 function readPositiveInteger(value: string | null, fallback: number, max: number): number {
   const parsed = Number(value)
@@ -67,6 +68,18 @@ function extractBearerToken(request: Request): string | null {
   const authHeader = request.headers.get('Authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null
   return authHeader.slice(7).trim()
+}
+
+function extractOwnerId(request: Request): string {
+  const token = extractBearerToken(request)
+  if (token) {
+    const session = mockStore.getSession(token)
+    if (session && !session.expired) {
+      return session.user.id
+    }
+  }
+  const guestHeader = request.headers.get('X-Guest-Id')
+  return guestHeader && guestHeader.trim() ? guestHeader.trim() : 'guest-default'
 }
 
 export const restHandlers = [
@@ -247,6 +260,103 @@ export const restHandlers = [
     return HttpResponse.json({ success: true, nftId, items })
   }),
 
+  // Cart endpoints
+  http.get('/api/cart', ({ request }) => {
+    const ownerId = extractOwnerId(request)
+    return HttpResponse.json(mockStore.getCart(ownerId))
+  }),
+
+  http.post('/api/cart/items', async ({ request }) => {
+    const ownerId = extractOwnerId(request)
+    try {
+      const body = (await request.json()) as { nftId?: string; editionId?: string; quantity?: number }
+      if (!body.nftId) {
+        return HttpResponse.json({ message: 'Identificador da obra é obrigatório.' }, { status: 400 })
+      }
+      const cart = mockStore.addToCart(ownerId, {
+        nftId: body.nftId,
+        editionId: body.editionId,
+        quantity: body.quantity,
+      })
+      return HttpResponse.json(cart, { status: 201 })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Não foi possível adicionar o item.'
+      return HttpResponse.json({ message }, { status: 400 })
+    }
+  }),
+
+  http.patch('/api/cart/items/:itemId', async ({ request, params }) => {
+    const ownerId = extractOwnerId(request)
+    try {
+      const body = (await request.json()) as { quantity?: number }
+      if (body.quantity === undefined) {
+        return HttpResponse.json({ message: 'Quantidade é obrigatória.' }, { status: 400 })
+      }
+      const cart = mockStore.updateCartItemQuantity(ownerId, String(params.itemId), body.quantity)
+      return HttpResponse.json(cart)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Não foi possível atualizar a quantidade.'
+      return HttpResponse.json({ message }, { status: 400 })
+    }
+  }),
+
+  http.delete('/api/cart/items/:itemId', ({ request, params }) => {
+    const ownerId = extractOwnerId(request)
+    const cart = mockStore.removeFromCart(ownerId, String(params.itemId))
+    return HttpResponse.json(cart)
+  }),
+
+  http.delete('/api/cart', ({ request }) => {
+    const ownerId = extractOwnerId(request)
+    const cart = mockStore.clearCart(ownerId)
+    return HttpResponse.json(cart)
+  }),
+
+  http.get('/api/cart/quote', ({ request }) => {
+    const ownerId = extractOwnerId(request)
+    try {
+      const quote = mockStore.getQuote(ownerId)
+      return HttpResponse.json(quote)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erro ao calcular cotação.'
+      return HttpResponse.json({ message }, { status: 503 })
+    }
+  }),
+
+  http.post('/api/cart/coupon', async ({ request }) => {
+    const ownerId = extractOwnerId(request)
+    try {
+      const body = (await request.json()) as { code?: string }
+      if (!body.code) {
+        return HttpResponse.json({ message: 'Informe o código do cupom.' }, { status: 400 })
+      }
+      const result = mockStore.applyCoupon(ownerId, body.code)
+      return HttpResponse.json(result)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Não foi possível aplicar o cupom.'
+      return HttpResponse.json({ message }, { status: 400 })
+    }
+  }),
+
+  http.delete('/api/cart/coupon', ({ request }) => {
+    const ownerId = extractOwnerId(request)
+    const cart = mockStore.removeCoupon(ownerId)
+    return HttpResponse.json(cart)
+  }),
+
+  http.post('/api/cart/merge', async ({ request }) => {
+    const ownerId = extractOwnerId(request)
+    try {
+      const body = (await request.json()) as { guestId?: string }
+      const guestId = body.guestId ?? ''
+      const result = mockStore.mergeCarts(ownerId, guestId)
+      return HttpResponse.json(result)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Falha ao mesclar o carrinho.'
+      return HttpResponse.json({ message }, { status: 400 })
+    }
+  }),
+
   // Scenario control endpoints
   http.post('/api/_mock/scenarios/nft-list-error-once', () => {
     mockStore.setFailNextNftList(true)
@@ -261,6 +371,42 @@ export const restHandlers = [
   http.post('/api/_mock/scenarios/favorites-fail-once', () => {
     mockStore.setFailNextFavorite(true)
     return HttpResponse.json({ enabled: true })
+  }),
+
+  http.post('/api/_mock/scenarios/cart-quote-error-once', () => {
+    mockStore.setFailNextQuote(true)
+    return HttpResponse.json({ enabled: true })
+  }),
+
+  http.post('/api/_mock/scenarios/emit-nft-update', async ({ request }) => {
+    try {
+      const body = (await request.json()) as {
+        nftId: string
+        priceEth?: string
+        available?: number
+        editionId?: string
+        version?: number
+      }
+      const updated = updateNftFixture(body.nftId, body)
+      if (!updated) {
+        return HttpResponse.json({ message: 'NFT não encontrado para atualização.' }, { status: 404 })
+      }
+      mockStore.setNftOverride(body.nftId, body)
+
+      const edition = updated.editions.find((e) => e.id === (body.editionId ?? 'open')) ?? updated.editions[0]
+      const event: NftUpdatedEvent = {
+        nftId: updated.id,
+        priceEth: edition ? edition.priceEth : (body.priceEth ?? '1.0'),
+        available: edition ? edition.available : (body.available ?? 1),
+        version: updated.version,
+      }
+
+      emitNftUpdateToClients(event)
+      return HttpResponse.json({ success: true, event, nft: updated })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Falha ao emitir evento de teste.'
+      return HttpResponse.json({ message }, { status: 400 })
+    }
   }),
 
   http.post('/api/_mock/scenarios/reset', () => {

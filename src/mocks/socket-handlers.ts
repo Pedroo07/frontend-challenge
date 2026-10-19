@@ -12,13 +12,31 @@ const nftUpdate: NftUpdatedEvent = {
   version: 2,
 }
 
+type SocketClient = ReturnType<typeof toSocketIo>['client']
+const activeClients = new Set<SocketClient>()
+
+export function emitNftUpdateToClients(event: NftUpdatedEvent) {
+  for (const client of activeClients) {
+    try {
+      client.emit('nft.updated', event)
+    } catch (err) {
+      console.warn('Falha ao emitir nft.updated para cliente socket', err)
+    }
+  }
+}
+
 export const socketHandlers = [
   socketLink.addEventListener('connection', (connection) => {
     const { client } = toSocketIo(connection)
+    activeClients.add(client)
+
     const timeoutId = window.setTimeout(() => {
       client.emit('nft.updated', nftUpdate)
     }, 100)
 
-    connection.client.addEventListener('close', () => window.clearTimeout(timeoutId), { once: true })
+    connection.client.addEventListener('close', () => {
+      window.clearTimeout(timeoutId)
+      activeClients.delete(client)
+    }, { once: true })
   }),
 ]

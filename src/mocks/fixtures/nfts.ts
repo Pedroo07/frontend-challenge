@@ -188,3 +188,39 @@ export function summarizeNft(nft: Nft): NftListItem {
     availableEditionCount: availableEditions.length,
   }
 }
+
+const initialNftsSnapshot = JSON.stringify(nftFixtures)
+
+export function updateNftFixture(
+  nftId: string,
+  updates: { priceEth?: string; available?: number; editionId?: string; version?: number },
+): Nft | undefined {
+  const nft = nftFixtures.find((n) => n.id === nftId)
+  if (!nft) return undefined
+
+  if (updates.version !== undefined) {
+    nft.version = updates.version
+  } else {
+    nft.version = (nft.version || 1) + 1
+  }
+
+  const editionId = updates.editionId ?? 'open'
+  const targetEdition = nft.editions.find((e) => e.id === editionId) ?? nft.editions[0]
+
+  if (targetEdition) {
+    if (updates.priceEth !== undefined) {
+      targetEdition.priceEth = updates.priceEth
+    }
+    if (updates.available !== undefined) {
+      targetEdition.available = updates.available
+    }
+  }
+
+  return nft
+}
+
+export function resetNftFixtures(): void {
+  const restored: Nft[] = JSON.parse(initialNftsSnapshot)
+  nftFixtures.length = 0
+  nftFixtures.push(...restored)
+}
