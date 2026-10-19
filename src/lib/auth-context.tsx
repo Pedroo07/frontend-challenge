@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import React, { createContext, useCallback, useContext, useEffect, useMemo } from 'react'
-import { AUTH_TOKEN_KEY, http } from './http'
+import { AUTH_TOKEN_KEY, getOrCreateGuestId, http, resetGuestId } from './http'
 import { router } from './router'
 import type { AuthResponse, SessionResponse, User } from '@/mocks/contracts'
 
@@ -48,7 +48,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       queryClient.removeQueries({ queryKey: ['favorites'] })
       queryClient.removeQueries({ queryKey: ['account'] })
+      queryClient.removeQueries({ queryKey: ['cart'] })
+      queryClient.removeQueries({ queryKey: ['cart', 'quote'] })
       queryClient.setQueryData(['auth', 'session'], null)
+      resetGuestId()
 
       const currentPath = window.location.pathname + window.location.search
       if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/cadastro')) {
@@ -61,20 +64,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [queryClient])
 
   const login = useCallback(async (credentials: { email: string; password?: string }) => {
+    const guestId = getOrCreateGuestId()
     const response = await http.post<AuthResponse>('/api/auth/login', credentials)
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(AUTH_TOKEN_KEY, response.data.token)
     }
+
+    if (guestId) {
+      try {
+        await http.post('/api/cart/merge', { guestId })
+        resetGuestId()
+      } catch (err) {
+        console.warn('Falha ao mesclar carrinho do visitante', err)
+      }
+    }
+
     queryClient.removeQueries({ queryKey: ['favorites'] })
+    queryClient.removeQueries({ queryKey: ['cart'] })
+    queryClient.removeQueries({ queryKey: ['cart', 'quote'] })
     queryClient.setQueryData(['auth', 'session'], response.data.user)
   }, [queryClient])
 
   const register = useCallback(async (data: { name: string; email: string; password?: string }) => {
+    const guestId = getOrCreateGuestId()
     const response = await http.post<AuthResponse>('/api/auth/register', data)
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(AUTH_TOKEN_KEY, response.data.token)
     }
+
+    if (guestId) {
+      try {
+        await http.post('/api/cart/merge', { guestId })
+        resetGuestId()
+      } catch (err) {
+        console.warn('Falha ao mesclar carrinho do visitante', err)
+      }
+    }
+
     queryClient.removeQueries({ queryKey: ['favorites'] })
+    queryClient.removeQueries({ queryKey: ['cart'] })
+    queryClient.removeQueries({ queryKey: ['cart', 'quote'] })
     queryClient.setQueryData(['auth', 'session'], response.data.user)
   }, [queryClient])
 
@@ -89,7 +118,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       queryClient.removeQueries({ queryKey: ['favorites'] })
       queryClient.removeQueries({ queryKey: ['account'] })
+      queryClient.removeQueries({ queryKey: ['cart'] })
+      queryClient.removeQueries({ queryKey: ['cart', 'quote'] })
       queryClient.setQueryData(['auth', 'session'], null)
+      resetGuestId()
     }
   }, [queryClient])
 

@@ -1,9 +1,5 @@
-import { QueryClientProvider } from '@tanstack/react-query'
-import { RouterProvider } from '@tanstack/react-router'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { queryClient } from '@/lib/query-client'
-import { router } from '@/lib/router'
 import type { MockStatus } from '@/mocks/browser'
 import './index.css'
 
@@ -22,6 +18,13 @@ async function bootstrap() {
     const { startBrowserMocks } = await import('@/mocks/browser')
     mocks = await startBrowserMocks()
   }
+
+  const [{ QueryClientProvider }, { RouterProvider }, { queryClient }, { router }] = await Promise.all([
+    import('@tanstack/react-query'),
+    import('@tanstack/react-router'),
+    import('@/lib/query-client'),
+    import('@/lib/router'),
+  ])
 
   root.render(
     <React.StrictMode>

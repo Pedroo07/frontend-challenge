@@ -1,6 +1,24 @@
 import axios from 'axios'
 
 export const AUTH_TOKEN_KEY = 'nft_auth_token'
+export const GUEST_ID_KEY = 'nft_guest_cart_id'
+
+export function getOrCreateGuestId(): string {
+  if (typeof window === 'undefined') return 'guest-ssr'
+  let guestId = window.localStorage.getItem(GUEST_ID_KEY)
+  if (!guestId) {
+    guestId = `guest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+    window.localStorage.setItem(GUEST_ID_KEY, guestId)
+  }
+  return guestId
+}
+
+export function resetGuestId(): string {
+  if (typeof window === 'undefined') return 'guest-ssr'
+  const newGuestId = `guest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  window.localStorage.setItem(GUEST_ID_KEY, newGuestId)
+  return newGuestId
+}
 
 export const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? '',
@@ -17,6 +35,13 @@ http.interceptors.request.use((config) => {
       } else {
         config.headers.Authorization = `Bearer ${token}`
       }
+    }
+
+    const guestId = getOrCreateGuestId()
+    if (typeof config.headers.set === 'function') {
+      config.headers.set('X-Guest-Id', guestId)
+    } else {
+      config.headers['X-Guest-Id'] = guestId
     }
   }
   return config
