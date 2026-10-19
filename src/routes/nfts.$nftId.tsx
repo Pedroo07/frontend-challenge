@@ -3,6 +3,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import axios from 'axios'
 import { useState } from 'react'
 import { HeartIcon, MarketplaceHeader } from '@/components/marketplace-header'
+import { useCart } from '@/lib/cart-context'
 import { catalogSearchDefaults, formatEth } from '@/lib/catalog-options'
 import { useFavorites } from '@/lib/favorites'
 import { getNft } from '@/lib/nft-api'
@@ -15,7 +16,10 @@ function NftDetailPage() {
   const nftQuery = useQuery({
     queryKey: ['nfts', 'detail', nftId],
     queryFn: ({ signal }) => getNft(nftId, signal),
-    retry: false,
+    retry: (failureCount, error) => {
+      if (axios.isAxiosError(error) && error.response?.status === 404) return false
+      return failureCount < 2
+    },
   })
   const isNotFound = axios.isAxiosError(nftQuery.error) && nftQuery.error.response?.status === 404
 
@@ -58,7 +62,10 @@ function NftDetailPage() {
 function NftDetailView({ nft }: { nft: Nft }) {
   const [editionId, setEditionId] = useState(nft.editions[0]?.id ?? '')
   const [quantity, setQuantity] = useState(1)
+  const [addedSuccess, setAddedSuccess] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const { isFavorite, toggleFavorite, isPending, pendingNftId, error: favoriteError } = useFavorites()
+  const { addItem, isMutating } = useCart()
   const isFav = isFavorite(nft.id)
   const isToggling = isPending && pendingNftId === nft.id
 
@@ -73,6 +80,23 @@ function NftDetailView({ nft }: { nft: Nft }) {
   const selectEdition = (next: NftEdition) => {
     setEditionId(next.id)
     setQuantity(1)
+    setAddedSuccess(false)
+  }
+
+  const handleAddToCart = async () => {
+    if (!edition || available <= 0) return
+    setActionError(null)
+    setAddedSuccess(false)
+    try {
+      await addItem({ nftId: nft.id, editionId: edition.id, quantity })
+      setAddedSuccess(true)
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.data?.message) {
+        setActionError(String(err.response.data.message))
+      } else {
+        setActionError('Não foi possível adicionar ao carrinho.')
+      }
+    }
   }
 
   return (
@@ -174,9 +198,33 @@ function NftDetailView({ nft }: { nft: Nft }) {
                 </div>
               </div>
 
-              <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                A quantidade respeita a disponibilidade da edição selecionada. O carrinho será integrado na próxima etapa.
-              </p>
+              <div className="mt-4 flex flex-col gap-2">
+                <button
+                  type="button"
+                  disabled={available === 0 || isMutating}
+                  onClick={() => void handleAddToCart()}
+                  aria-label={available === 0 ? 'Edição esgotada' : `Adicionar ${quantity} ${quantity === 1 ? 'unidade' : 'unidades'} ao carrinho`}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-md transition-colors hover:bg-primary-light focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-55"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" className="size-5"><path d="M3 4h2l2.1 11.1a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 1.9-1.4L21 8H6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /><circle cx="10" cy="20" r="1.3" fill="currentColor" /><circle cx="18" cy="20" r="1.3" fill="currentColor" /></svg>
+                  {available === 0 ? 'Edição esgotada' : isMutating ? 'Adicionando ao carrinho...' : 'Adicionar ao carrinho'}
+                </button>
+
+                {addedSuccess && (
+                  <div role="status" aria-live="polite" className="flex items-center justify-between rounded-lg bg-emerald-500/10 px-3.5 py-2.5 text-xs font-semibold text-emerald-800">
+                    <span>{quantity} {quantity === 1 ? 'item adicionado' : 'itens adicionados'} ao carrinho!</span>
+                    <Link to="/carrinho" className="underline hover:opacity-80">
+                      Ver carrinho →
+                    </Link>
+                  </div>
+                )}
+
+                {actionError && (
+                  <div role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">
+                    {actionError}
+                  </div>
+                )}
+              </div>
             </>
           )}
 

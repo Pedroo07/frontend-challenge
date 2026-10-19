@@ -1,14 +1,32 @@
 import { Link } from '@tanstack/react-router'
+import { useState } from 'react'
+import { HeartIcon } from '@/components/marketplace-header'
+import { useCart } from '@/lib/cart-context'
 import { formatEth } from '@/lib/catalog-options'
 import { useFavorites } from '@/lib/favorites'
 import type { NftListItem } from '@/mocks/contracts'
-import { HeartIcon } from '@/components/marketplace-header'
 
 export function NftCard({ nft }: { nft: NftListItem }) {
   const { isFavorite, toggleFavorite, isPending, pendingNftId } = useFavorites()
+  const { addItem, isMutating } = useCart()
+  const [justAdded, setJustAdded] = useState(false)
   const favorite = isFavorite(nft.id)
   const isToggling = isPending && pendingNftId === nft.id
   const edition = nft.name.match(/#\s*([\w-]+)/)?.[1] ?? nft.id.split('-').at(-1) ?? '01'
+
+  const handleQuickAdd = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const targetEdition = nft.editions.find((ed) => ed.available > 0) ?? nft.editions[0]
+    if (!targetEdition || targetEdition.available <= 0) return
+    try {
+      await addItem({ nftId: nft.id, editionId: targetEdition.id, quantity: 1 })
+      setJustAdded(true)
+      setTimeout(() => setJustAdded(false), 2000)
+    } catch {
+      // Handled by context
+    }
+  }
 
   return (
     <article className="group relative min-w-0 overflow-hidden rounded-sm bg-card transition duration-200 hover:-translate-y-1 hover:shadow-[0_14px_36px_rgba(0,0,0,0.28)] focus-within:outline-2 focus-within:outline-offset-4 focus-within:outline-primary">
@@ -52,14 +70,25 @@ export function NftCard({ nft }: { nft: NftListItem }) {
       <div className="flex min-w-0 items-center justify-between gap-1 px-2.5 pb-2.5 pt-1 sm:px-3 sm:pb-3">
         <p className="truncate font-mono text-xs font-bold tracking-wide text-primary sm:text-sm">{formatEth(nft.priceEth)} ETH</p>
         <div className="flex shrink-0 items-center gap-1">
-          <Link
-            to="/nfts/$nftId"
-            params={{ nftId: nft.id }}
-            aria-label={`Comprar ${nft.name}`}
-            className="grid size-8 place-items-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary-light focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          <button
+            type="button"
+            disabled={nft.available === 0 || isMutating}
+            onClick={(e) => void handleQuickAdd(e)}
+            aria-label={
+              nft.available === 0
+                ? `${nft.name} esgotado`
+                : justAdded
+                  ? `${nft.name} adicionado ao carrinho`
+                  : `Adicionar ${nft.name} ao carrinho`
+            }
+            className={`grid size-8 place-items-center rounded-full text-primary-foreground transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-40 ${justAdded ? 'bg-emerald-600' : 'bg-primary hover:bg-primary-light'}`}
           >
-            <CartIcon className="size-4" />
-          </Link>
+            {justAdded ? (
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="size-4"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+            ) : (
+              <CartIcon className="size-4" />
+            )}
+          </button>
         </div>
       </div>
     </article>

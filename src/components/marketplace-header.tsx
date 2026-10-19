@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
+import { useCart } from '@/lib/cart-context'
 
 type MarketplaceHeaderProps = {
   query?: string
@@ -13,6 +14,7 @@ export function MarketplaceHeader({ query = '', onQueryChange, onFiltersClick, f
   const [desktopSearchOpen, setDesktopSearchOpen] = useState(false)
   const desktopSearchRef = useRef<HTMLInputElement>(null)
   const { user, isAuthenticated, logout } = useAuth()
+  const { totalQuantity } = useCart()
 
   useEffect(() => {
     if (desktopSearchOpen) desktopSearchRef.current?.focus()
@@ -51,10 +53,21 @@ export function MarketplaceHeader({ query = '', onQueryChange, onFiltersClick, f
             >
               <SearchIcon className="size-5" />
             </button>
-            <a href="#catalog" aria-label="Carrinho, 0 itens" className="relative grid size-8 place-items-center rounded-md transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+            <Link
+              to="/carrinho"
+              aria-label={`Carrinho, ${totalQuantity} ${totalQuantity === 1 ? 'item' : 'itens'}`}
+              className="relative grid size-8 place-items-center rounded-md transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
               <CartIcon className="size-5" />
-              <span className="absolute right-0 top-0 grid size-3.5 place-items-center rounded-full bg-primary text-[9px] font-bold leading-none text-primary-foreground">0</span>
-            </a>
+              {totalQuantity > 0 && (
+                <span
+                  data-testid="cart-badge-count"
+                  className="absolute right-0 top-0 grid size-3.5 place-items-center rounded-full bg-primary text-[9px] font-bold leading-none text-primary-foreground"
+                >
+                  {totalQuantity > 99 ? '99+' : totalQuantity}
+                </span>
+              )}
+            </Link>
 
             {isAuthenticated && user ? (
               <div className="flex items-center gap-3">
@@ -148,6 +161,7 @@ export function MarketplaceHeader({ query = '', onQueryChange, onFiltersClick, f
 
 function MobileTabBar() {
   const { user, isAuthenticated, logout } = useAuth()
+  const { totalQuantity } = useCart()
   const redirectUrl = typeof window !== 'undefined' && window.location.pathname !== '/login' && window.location.pathname !== '/cadastro'
     ? window.location.pathname + window.location.search
     : '/'
@@ -161,7 +175,18 @@ function MobileTabBar() {
         <Link to="/login" search={{ redirect: redirectUrl }} aria-label="Favoritos" className="grid h-full place-items-center"><HeartIcon className="size-5" /></Link>
       )}
       <a href="#catalog" aria-label="Explorar NFTs" className="-mt-6 grid size-14 place-self-center place-items-center rounded-full border-4 border-background bg-primary text-primary-foreground shadow-lg"><ScanIcon className="size-6" /></a>
-      <a href="#catalog" aria-label="Carrinho" className="grid h-full place-items-center"><CartIcon className="size-5" /></a>
+      <Link
+        to="/carrinho"
+        aria-label={`Carrinho, ${totalQuantity} itens`}
+        className="relative grid h-full place-items-center hover:text-primary"
+      >
+        <CartIcon className="size-5" />
+        {totalQuantity > 0 && (
+          <span className="absolute right-3.5 top-3.5 grid size-3.5 place-items-center rounded-full bg-primary text-[9px] font-bold leading-none text-primary-foreground">
+            {totalQuantity > 99 ? '99+' : totalQuantity}
+          </span>
+        )}
+      </Link>
       {isAuthenticated ? (
         <button
           type="button"
