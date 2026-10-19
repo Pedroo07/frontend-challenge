@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" fill="none">
+  <defs>
+    <linearGradient id="dusk" x1="104" y1="70" x2="703" y2="754" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#142448"/>
+      <stop offset=".52" stop-color="#456EA9"/>
+      <stop offset="1" stop-color="#E6A8AA"/>
+    </linearGradient>
+    <linearGradient id="planet" x1="313" y1="255" x2="521" y2="458" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF0CE"/>
+      <stop offset="1" stop-color="#F2B7B0"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#dusk)" d="M0 0h800v800H0z"/>
+  <circle cx="417" cy="343" r="154" fill="#BACBE9" fill-opacity=".1"/>
+  <circle cx="417" cy="343" r="118" fill="url(#planet)"/>
+  <path d="M0 576c132-44 259-42 381 7 121 49 260 50 419-5v222H0V576Z" fill="#172744" fill-opacity=".88"/>
+  <path d="M0 641c145-42 271-35 388 10 121 47 255 48 412-1" stroke="#BACBE9" stroke-opacity=".38" stroke-width="3"/>
+  <path d="M83 694c115-27 207-21 302 13 95 35 206 37 333 3" stroke="#BACBE9" stroke-opacity=".24" stroke-width="2"/>
+  <circle cx="128" cy="198" r="4" fill="#FFF4E0"/>
+  <circle cx="226" cy="128" r="3" fill="#FFF4E0" opacity=".8"/>
+  <circle cx="631" cy="170" r="4" fill="#FFF4E0"/>
+  <circle cx="683" cy="263" r="2.5" fill="#FFF4E0" opacity=".7"/>
+  <circle cx="563" cy="94" r="2.5" fill="#FFF4E0" opacity=".8"/>
+  <path d="m179 324 8 21 21 8-21 8-8 21-8-21-21-8 21-8 8-21Z" fill="#FFF4E0" fill-opacity=".85"/>
+</svg>

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" fill="none">
+  <defs>
+    <linearGradient id="sky" x1="77" y1="68" x2="724" y2="727" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#171432"/>
+      <stop offset=".55" stop-color="#473B85"/>
+      <stop offset="1" stop-color="#D890D4"/>
+    </linearGradient>
+    <linearGradient id="light" x1="172" y1="495" x2="640" y2="290" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8AD9D5"/>
+      <stop offset=".5" stop-color="#B8BBFF"/>
+      <stop offset="1" stop-color="#F6B3D8"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="matrix(0 316 -316 0 398 320)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D3D3FF" stop-opacity=".68"/>
+      <stop offset="1" stop-color="#D3D3FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h800v800H0z"/>
+  <circle cx="398" cy="320" r="316" fill="url(#glow)"/>
+  <path d="M40 492c102-83 168-97 270-47 111 54 157 58 255-10 73-51 128-58 195-24v389H40V492Z" fill="#222347" fill-opacity=".85"/>
+  <path d="M55 442c115-83 198-100 304-49 92 44 154 44 249-15 58-36 103-46 151-31" stroke="url(#light)" stroke-width="37" stroke-linecap="round" opacity=".88"/>
+  <path d="M114 509c107-52 173-51 266-6 79 38 136 34 224-17" stroke="#F5C8E9" stroke-width="10" stroke-linecap="round" opacity=".75"/>
+  <circle cx="596" cy="167" r="5" fill="#FFF7DF"/>
+  <circle cx="651" cy="225" r="3" fill="#FFF7DF" opacity=".75"/>
+  <circle cx="194" cy="202" r="4" fill="#FFF7DF" opacity=".8"/>
+  <circle cx="296" cy="142" r="2.5" fill="#FFF7DF"/>
+  <circle cx="521" cy="99" r="2.5" fill="#FFF7DF" opacity=".8"/>
+</svg>

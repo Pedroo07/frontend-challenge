@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" fill="none">
+  <defs>
+    <linearGradient id="paper" x1="113" y1="24" x2="680" y2="783" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF5E9"/>
+      <stop offset="1" stop-color="#F5D7D1"/>
+    </linearGradient>
+    <linearGradient id="petal" x1="285" y1="247" x2="485" y2="601" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F38F91"/>
+      <stop offset="1" stop-color="#CC557E"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#paper)" d="M0 0h800v800H0z"/>
+  <circle cx="400" cy="400" r="286" stroke="#DABAAE" stroke-width="2"/>
+  <circle cx="400" cy="400" r="231" stroke="#DABAAE" stroke-opacity=".72" stroke-width="2"/>
+  <g fill="url(#petal)">
+    <ellipse cx="400" cy="288" rx="68" ry="142"/>
+    <ellipse cx="400" cy="288" rx="68" ry="142" transform="rotate(45 400 400)"/>
+    <ellipse cx="400" cy="288" rx="68" ry="142" transform="rotate(90 400 400)"/>
+    <ellipse cx="400" cy="288" rx="68" ry="142" transform="rotate(135 400 400)"/>
+  </g>
+  <circle cx="400" cy="400" r="67" fill="#EFC486"/>
+  <circle cx="400" cy="400" r="38" fill="#F7E2B8"/>
+  <path d="M140 657c99-62 169-65 260-5s161 56 260-3" stroke="#748969" stroke-width="17" stroke-linecap="round"/>
+  <path d="M222 632c-41-64-37-107 10-143 64 48 65 91-10 143Zm356-1c45-64 42-105-6-142-67 47-70 88 6 142Z" fill="#8CA17B"/>
+</svg>
