@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CadastroRouteImport } from './routes/cadastro'
 import { Route as DiagnosticRouteImport } from './routes/diagnostic'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as NftsNftIdRouteImport } from './routes/nfts.$nftId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -18,9 +20,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CadastroRoute = CadastroRouteImport.update({
+  id: '/cadastro',
+  path: '/cadastro',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DiagnosticRoute = DiagnosticRouteImport.update({
   id: '/diagnostic',
   path: '/diagnostic',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NftsNftIdRoute = NftsNftIdRouteImport.update({
@@ -31,31 +43,39 @@ const NftsNftIdRoute = NftsNftIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/cadastro': typeof CadastroRoute
   '/diagnostic': typeof DiagnosticRoute
+  '/login': typeof LoginRoute
   '/nfts/$nftId': typeof NftsNftIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/cadastro': typeof CadastroRoute
   '/diagnostic': typeof DiagnosticRoute
+  '/login': typeof LoginRoute
   '/nfts/$nftId': typeof NftsNftIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/cadastro': typeof CadastroRoute
   '/diagnostic': typeof DiagnosticRoute
+  '/login': typeof LoginRoute
   '/nfts/$nftId': typeof NftsNftIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/diagnostic' | '/nfts/$nftId'
+  fullPaths: '/' | '/cadastro' | '/diagnostic' | '/login' | '/nfts/$nftId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/diagnostic' | '/nfts/$nftId'
-  id: '__root__' | '/' | '/diagnostic' | '/nfts/$nftId'
+  to: '/' | '/cadastro' | '/diagnostic' | '/login' | '/nfts/$nftId'
+  id: '__root__' | '/' | '/cadastro' | '/diagnostic' | '/login' | '/nfts/$nftId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CadastroRoute: typeof CadastroRoute
   DiagnosticRoute: typeof DiagnosticRoute
+  LoginRoute: typeof LoginRoute
   NftsNftIdRoute: typeof NftsNftIdRoute
 }
 
@@ -68,11 +88,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cadastro': {
+      id: '/cadastro'
+      path: '/cadastro'
+      fullPath: '/cadastro'
+      preLoaderRoute: typeof CadastroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/diagnostic': {
       id: '/diagnostic'
       path: '/diagnostic'
       fullPath: '/diagnostic'
       preLoaderRoute: typeof DiagnosticRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/nfts/$nftId': {
@@ -87,7 +121,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CadastroRoute: CadastroRoute,
   DiagnosticRoute: DiagnosticRoute,
+  LoginRoute: LoginRoute,
   NftsNftIdRoute: NftsNftIdRoute,
 }
 export const routeTree = rootRouteImport

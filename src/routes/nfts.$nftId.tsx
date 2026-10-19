@@ -2,8 +2,9 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import axios from 'axios'
 import { useState } from 'react'
-import { MarketplaceHeader } from '@/components/marketplace-header'
-import { formatEth } from '@/lib/catalog-options'
+import { HeartIcon, MarketplaceHeader } from '@/components/marketplace-header'
+import { catalogSearchDefaults, formatEth } from '@/lib/catalog-options'
+import { useFavorites } from '@/lib/favorites'
 import { getNft } from '@/lib/nft-api'
 import type { Nft, NftEdition } from '@/mocks/contracts'
 
@@ -21,10 +22,10 @@ function NftDetailPage() {
   return (
     <div className="min-h-svh overflow-x-clip bg-background text-foreground">
       <MarketplaceHeader />
-      <main className="mx-auto max-w-[1280px] px-4 py-6 sm:px-7 sm:py-9 lg:px-10">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-7 sm:py-9 lg:px-10">
         <Link
           to="/"
-          search={{ q: '', collection: 'all', available: false, sort: 'newest', page: 1 }}
+          search={{ ...catalogSearchDefaults }}
           className="inline-flex items-center gap-2 rounded text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
         >
           <span aria-hidden="true">←</span> Voltar ao catálogo
@@ -42,7 +43,7 @@ function NftDetailPage() {
               </p>
               <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
                 {!isNotFound && <button type="button" onClick={() => void nftQuery.refetch()} className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">Tentar novamente</button>}
-                <Link to="/" search={{ q: '', collection: 'all', available: false, sort: 'newest', page: 1 }} className="rounded-lg border border-border px-4 py-2.5 text-sm font-semibold hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">Explorar catálogo</Link>
+                <Link to="/" search={{ ...catalogSearchDefaults }} className="rounded-lg border border-border px-4 py-2.5 text-sm font-semibold hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">Explorar catálogo</Link>
               </div>
             </div>
           </section>
@@ -57,6 +58,10 @@ function NftDetailPage() {
 function NftDetailView({ nft }: { nft: Nft }) {
   const [editionId, setEditionId] = useState(nft.editions[0]?.id ?? '')
   const [quantity, setQuantity] = useState(1)
+  const { isFavorite, toggleFavorite, isPending, pendingNftId, error: favoriteError } = useFavorites()
+  const isFav = isFavorite(nft.id)
+  const isToggling = isPending && pendingNftId === nft.id
+
   const edition = nft.editions.find((option) => option.id === editionId) ?? nft.editions[0]
   const available = edition?.available ?? 0
 
@@ -72,7 +77,7 @@ function NftDetailView({ nft }: { nft: Nft }) {
 
   return (
     <article className="pb-12 pt-6 sm:pt-8">
-      <div className="grid gap-7 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:items-start lg:gap-12 xl:gap-[72px]">
+      <div className="grid gap-7 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:items-start lg:gap-12 xl:gap-18">
         <div className="overflow-hidden rounded-[28px] border border-border bg-white p-2.5 shadow-[0_12px_40px_rgba(39,33,85,0.07)] sm:p-4">
           <img src={nft.imageUrl} alt={`${nft.name}, arte da coleção ${nft.collection.name}`} className="aspect-square w-full rounded-[20px] object-cover" />
           <div className="flex items-center justify-between gap-3 px-2 pb-1 pt-4 text-xs text-muted-foreground sm:px-3 sm:text-sm">
@@ -82,7 +87,27 @@ function NftDetailView({ nft }: { nft: Nft }) {
         </div>
 
         <div className="pt-1 sm:pt-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.19em] text-primary">{nft.collection.name}</p>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.19em] text-primary">{nft.collection.name}</p>
+            <button
+              type="button"
+              aria-label={isFav ? `Remover ${nft.name} dos favoritos` : `Adicionar ${nft.name} aos favoritos`}
+              aria-pressed={isFav}
+              disabled={isToggling}
+              onClick={() => void toggleFavorite(nft)}
+              className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60 ${isFav ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:border-primary hover:text-foreground'}`}
+            >
+              <HeartIcon className="size-4" filled={isFav} />
+              <span>{isFav ? 'Favorito' : 'Favoritar'}</span>
+            </button>
+          </div>
+
+          {favoriteError && (
+            <div role="alert" aria-live="assertive" className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 p-2.5 font-mono text-xs text-destructive">
+              {favoriteError}
+            </div>
+          )}
+
           <h1 className="mt-3 text-3xl font-semibold leading-tight tracking-[-0.035em] sm:text-[40px]">{nft.name}</h1>
           <p className="mt-3 text-sm text-muted-foreground">Criada por <span className="font-medium text-foreground">{nft.creator}</span></p>
 
@@ -106,7 +131,7 @@ function NftDetailView({ nft }: { nft: Nft }) {
                     aria-pressed={selected}
                     disabled={soldOut}
                     onClick={() => selectEdition(option)}
-                    className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-55 ${selected ? 'border-primary bg-primary/[0.045] ring-1 ring-primary/20' : 'border-border bg-white hover:border-primary/40'}`}
+                    className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-55 ${selected ? 'border-primary bg-primary/4.5 ring-1 ring-primary/20' : 'border-border bg-white hover:border-primary/40'}`}
                   >
                     <span>
                       <span className="block text-sm font-semibold">{option.name}</span>
@@ -168,12 +193,12 @@ function NftDetailView({ nft }: { nft: Nft }) {
 function NftDetailSkeleton() {
   return (
     <div role="status" aria-label="Carregando detalhes do NFT" className="grid gap-7 pb-12 pt-6 lg:grid-cols-2 lg:gap-12 lg:pt-8">
-      <div className="aspect-square animate-shimmer rounded-[28px] bg-[linear-gradient(100deg,#eeedf3_30%,#faf9fc_50%,#eeedf3_70%)] bg-[length:200%_100%]" />
+      <div className="aspect-square animate-shimmer rounded-[28px] bg-[linear-gradient(100deg,#eeedf3_30%,#faf9fc_50%,#eeedf3_70%)] bg-size-[200%_100%]" />
       <div className="space-y-5 pt-3">
-        <div className="h-3 w-28 animate-shimmer rounded bg-[linear-gradient(100deg,#eeedf3_30%,#faf9fc_50%,#eeedf3_70%)] bg-[length:200%_100%]" />
-        <div className="h-10 w-3/4 animate-shimmer rounded bg-[linear-gradient(100deg,#eeedf3_30%,#faf9fc_50%,#eeedf3_70%)] bg-[length:200%_100%]" />
-        <div className="h-20 animate-shimmer rounded bg-[linear-gradient(100deg,#eeedf3_30%,#faf9fc_50%,#eeedf3_70%)] bg-[length:200%_100%]" />
-        <div className="h-24 animate-shimmer rounded-xl bg-[linear-gradient(100deg,#eeedf3_30%,#faf9fc_50%,#eeedf3_70%)] bg-[length:200%_100%]" />
+        <div className="h-3 w-28 animate-shimmer rounded bg-[linear-gradient(100deg,#eeedf3_30%,#faf9fc_50%,#eeedf3_70%)] bg-size-[200%_100%]" />
+        <div className="h-10 w-3/4 animate-shimmer rounded bg-[linear-gradient(100deg,#eeedf3_30%,#faf9fc_50%,#eeedf3_70%)] bg-size-[200%_100%]" />
+        <div className="h-20 animate-shimmer rounded bg-[linear-gradient(100deg,#eeedf3_30%,#faf9fc_50%,#eeedf3_70%)] bg-size-[200%_100%]" />
+        <div className="h-24 animate-shimmer rounded-xl bg-[linear-gradient(100deg,#eeedf3_30%,#faf9fc_50%,#eeedf3_70%)] bg-size-[200%_100%]" />
       </div>
     </div>
   )

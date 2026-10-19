@@ -1,35 +1,245 @@
 @import "tailwindcss";
 
+/*
+ * Tokens transcritos de figma-spec.json.
+ * A especificação não contém fontFamily; Inter é a família já usada pelo app.
+ */
 :root {
+  color-scheme: dark;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f7f8fa;
-  color: #171b24;
   font-optical-sizing: auto;
   font-variation-settings: "slnt" 0;
+
+  /* Figma color variables */
+  --background: #140d0a;
+  --background-elevated: #fbfbfb;
+  --foreground: #f5f1eb;
+  --ink: #140d0a;
+  --card: #241612;
+  --surface-dark: #38220f;
+  --surface-raised: #2f1d15;
+  --card-foreground: #f5f1eb;
+  --popover: #241612;
+  --popover-foreground: #f5f1eb;
+  --primary: #d28a4c;
+  --primary-light: #dd9a5f;
+  --primary-dark: #c47b3e;
+  --primary-foreground: #140d0a;
+  --secondary: #b39463;
+  --secondary-foreground: #140d0a;
+  --muted: #2f1d15;
+  --muted-foreground: #cfb28c;
+  --accent: #e89b55;
+  --accent-foreground: #140d0a;
+  --destructive: #ed1b2e;
+  --border: #3f2319;
+  --border-soft: #55321f;
+  --input: #3f2319;
+  --ring: #d28a4c;
+  --text-secondary: #cfb28c;
+  --text-accent: #e89b55;
+  --text-coral: #ea6b4f;
+  --success: #00a66c;
+  --warning: #e3a44e;
+  --white: #ffffff;
+  --black: #000000;
+  --radius: 10px;
+
+  /* Figma also uses 8px cards, 12px banners, and 40px circular elements. */
+  --radius-card: 8px;
+  --radius-banner: 12px;
+  --radius-circle: 40px;
+  --figma-radius-hero: 24px;
+  --figma-radius-mobile-nav: 40px;
+  --shimmer-base: #241612;
+  --shimmer-highlight: #38220f;
+
+  /* Figma type sizes in pixels. */
+  --figma-font-9: 9px;
+  --figma-font-10: 10px;
+  --figma-font-11: 11px;
+  --figma-font-12: 12px;
+  --figma-font-13: 13px;
+  --figma-font-14: 14px;
+  --figma-font-15: 15px;
+  --figma-font-16: 16px;
+  --figma-font-17: 17px;
+  --figma-font-18: 18px;
+  --figma-font-19: 19px;
+  --figma-font-20: 20px;
+  --figma-font-21: 21px;
+  --figma-font-22: 22px;
+  --figma-font-23: 23px;
+  --figma-font-24: 24px;
+  --figma-font-26: 26px;
+  --figma-font-28: 28px;
+  --figma-font-32: 32px;
+  --figma-font-43: 43px;
+
+  /* Explicit line heights present in the Figma text styles. */
+  --figma-leading-10: 10px;
+  --figma-leading-14: 14px;
+  --figma-leading-15: 15px;
+  --figma-leading-16: 16px;
+  --figma-leading-18: 18px;
+  --figma-leading-20: 20px;
+  --figma-leading-22: 22px;
+  --figma-leading-24: 24px;
+  --figma-leading-29: 29px;
+  --figma-leading-30: 30px;
+  --figma-leading-32: 32px;
+  --figma-leading-40: 40px;
+  --figma-leading-45: 45px;
+  --figma-leading-70: 70px;
 }
 
+/* Tailwind v4 theme tokens and shadcn/ui CSS-variable bridge. */
 @theme inline {
-  --color-background: #f7f8fa;
-  --color-foreground: #171b24;
-  --color-card: #ffffff;
-  --color-card-foreground: #171b24;
-  --color-primary: #5246d8;
-  --color-primary-foreground: #ffffff;
-  --color-muted: #f0f1f6;
-  --color-muted-foreground: #626a7a;
-  --color-border: #e3e6ed;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --color-background: var(--background);
+  --color-background-elevated: var(--background-elevated);
+  --color-foreground: var(--foreground);
+  --color-ink: var(--ink);
+  --color-card: var(--card);
+  --color-surface-dark: var(--surface-dark);
+  --color-surface-raised: var(--surface-raised);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-light: var(--primary-light);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-border-soft: var(--border-soft);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-accent: var(--text-accent);
+  --color-text-coral: var(--text-coral);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-white: var(--white);
+  --color-black: var(--black);
+
+  --radius-sm: var(--radius-card);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius-banner);
+  --radius-xl: var(--radius-banner);
+  --radius-hero: var(--figma-radius-hero);
+  --radius-mobile-nav: var(--figma-radius-mobile-nav);
+
+  --text-figma-9: var(--figma-font-9);
+  --text-figma-10: var(--figma-font-10);
+  --text-figma-11: var(--figma-font-11);
+  --text-figma-12: var(--figma-font-12);
+  --text-figma-13: var(--figma-font-13);
+  --text-figma-14: var(--figma-font-14);
+  --text-figma-15: var(--figma-font-15);
+  --text-figma-16: var(--figma-font-16);
+  --text-figma-17: var(--figma-font-17);
+  --text-figma-18: var(--figma-font-18);
+  --text-figma-19: var(--figma-font-19);
+  --text-figma-20: var(--figma-font-20);
+  --text-figma-21: var(--figma-font-21);
+  --text-figma-22: var(--figma-font-22);
+  --text-figma-23: var(--figma-font-23);
+  --text-figma-24: var(--figma-font-24);
+  --text-figma-26: var(--figma-font-26);
+  --text-figma-28: var(--figma-font-28);
+  --text-figma-32: var(--figma-font-32);
+  --text-figma-43: var(--figma-font-43);
+
+  --leading-figma-10: var(--figma-leading-10);
+  --leading-figma-14: var(--figma-leading-14);
+  --leading-figma-15: var(--figma-leading-15);
+  --leading-figma-16: var(--figma-leading-16);
+  --leading-figma-18: var(--figma-leading-18);
+  --leading-figma-20: var(--figma-leading-20);
+  --leading-figma-22: var(--figma-leading-22);
+  --leading-figma-24: var(--figma-leading-24);
+  --leading-figma-29: var(--figma-leading-29);
+  --leading-figma-30: var(--figma-leading-30);
+  --leading-figma-32: var(--figma-leading-32);
+  --leading-figma-40: var(--figma-leading-40);
+  --leading-figma-45: var(--figma-leading-45);
+  --leading-figma-70: var(--figma-leading-70);
+
+  --radius-figma-card: var(--radius-card);
+  --radius-figma-control: var(--radius);
+  --radius-figma-banner: var(--radius-banner);
+  --radius-figma-circle: var(--radius-circle);
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; min-height: 100vh; }
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--foreground);
+}
 
 .animate-shimmer {
+  background-image: linear-gradient(100deg, var(--shimmer-base) 28%, var(--shimmer-highlight) 50%, var(--shimmer-base) 72%);
+  background-size: 200% 100%;
   animation: shimmer 1.65s ease-in-out infinite;
+}
+
+.hero-mobile-surface {
+  background: radial-gradient(ellipse at 18% 20%, var(--border-soft) 0, var(--surface-dark) 36%, var(--card) 75%);
+}
+
+.catalog-price-range {
+  position: absolute;
+  inset: 50% 0 auto;
+  width: 100%;
+  height: 16px;
+  margin: 0;
+  transform: translateY(-50%);
+  appearance: none;
+  pointer-events: none;
+  background: transparent;
+}
+
+.catalog-price-range::-webkit-slider-runnable-track { height: 4px; background: transparent; }
+.catalog-price-range::-moz-range-track { height: 4px; background: transparent; }
+.catalog-price-range::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  appearance: none;
+  border: 2px solid var(--background);
+  border-radius: 50%;
+  background: var(--primary);
+  pointer-events: auto;
+  cursor: grab;
+}
+.catalog-price-range::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--background);
+  border-radius: 50%;
+  background: var(--primary);
+  pointer-events: auto;
+  cursor: grab;
+}
+.catalog-price-range:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+@media (min-width: 768px) {
+  .hero-mobile-surface { background: transparent; }
 }
 
 @keyframes shimmer {
