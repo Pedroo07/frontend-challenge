@@ -4,7 +4,11 @@ import type {
   CartQuote,
   CartQuoteConflict,
   CartResponse,
+  CreateOrderPayload,
   MergeCartResponse,
+  Order,
+  OrderItem,
+  OrderStatus,
   User,
 } from './contracts'
 import { nftFixtures, resetNftFixtures, updateNftFixture } from './fixtures/nfts'
@@ -40,17 +44,27 @@ export type NftOverride = {
   version?: number
 }
 
+type IdempotencyRecord = {
+  orderId: string
+  payloadFingerprint: string
+}
+
 type MockStoreState = {
   users: StoredUser[]
   sessions: StoredSession[]
   favorites: Record<string, string[]>
   carts: Record<string, StoredCart>
+  orders: Record<string, Order>
+  idempotencyRecords: Record<string, IdempotencyRecord>
   nftOverrides?: Record<string, NftOverride>
   scenarios: {
     failNextNftListRequest: boolean
     failNextFavoriteRequest: boolean
     forceSessionExpired: boolean
     failNextQuoteRequest: boolean
+    failNextOrderCreate: boolean
+    timeoutAfterOrderCreate: boolean
+    nextPaymentResult: OrderStatus | null
   }
 }
 
@@ -78,6 +92,14 @@ const initialFavorites: Record<string, string[]> = {
   'user-lucas': ['nft-flora-006'],
 }
 
+function computeOrderFingerprint(payload: CreateOrderPayload): string {
+  const sortedItems = [...payload.items]
+    .sort((a, b) => `${a.nftId}:${a.editionId}`.localeCompare(`${b.nftId}:${b.editionId}`))
+    .map((i) => `${i.nftId}:${i.editionId}:${i.quantity}:${i.unitPriceEth}`)
+    .join('|')
+  return `${payload.buyer.name}|${payload.buyer.email}|${payload.buyer.walletAddress}|${payload.buyer.network}|${sortedItems}|${payload.totalEth}|${payload.couponCode ?? ''}`
+}
+
 function createInitialState(): MockStoreState {
   return {
     users: [...initialUsers],
@@ -90,15 +112,21 @@ function createInitialState(): MockStoreState {
     ],
     favorites: { ...initialFavorites },
     carts: {},
+    orders: {},
+    idempotencyRecords: {},
     nftOverrides: {},
     scenarios: {
       failNextNftListRequest: false,
       failNextFavoriteRequest: false,
       forceSessionExpired: false,
       failNextQuoteRequest: false,
+      failNextOrderCreate: false,
+      timeoutAfterOrderCreate: false,
+      nextPaymentResult: null,
     },
   }
 }
+
 
 class MockStore {
   private state: MockStoreState
@@ -131,7 +159,13 @@ class MockStore {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY)
       if (!raw) return null
-      return JSON.parse(raw) as MockStoreState
+      const parsed = JSON.parse(raw) as MockStoreState
+      if (!parsed.orders) parsed.orders = {}
+      if (!parsed.idempotencyRecords) parsed.idempotencyRecords = {}
+      if (!parsed.scenarios) {
+        parsed.scenarios = createInitialState().scenarios
+      }
+      return parsed
     } catch {
       return null
     }
@@ -207,6 +241,7 @@ class MockStore {
   }
 
   public createSession(userId: string): StoredSession {
+    this.state.scenarios.forceSessionExpired = false
     const session: StoredSession = {
       token: `tok-${userId}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
       userId,
@@ -220,6 +255,8 @@ class MockStore {
 
   public getSession(token: string): { user: User; expired: boolean } | null {
     if (this.state.scenarios.forceSessionExpired) {
+      this.state.scenarios.forceSessionExpired = false
+      this.saveToStorage()
       const fallbackUser: User = {
         id: 'user-ana',
         name: 'Ana Silva',
@@ -639,6 +676,244 @@ class MockStore {
       return true
     }
     return false
+  }
+
+  // --- Order & Payment Management with Idempotency ---
+
+  public createOrder(userId: string, payload: CreateOrderPayload, idempotencyKey: string): Order {
+    if (this.state.scenarios.failNextOrderCreate) {
+      this.state.scenarios.failNextOrderCreate = false
+      this.saveToStorage()
+      throw new Error('FALHA_CRIACAO_PEDIDO: Serviço temporariamente indisponível.')
+    }
+
+    const key = (idempotencyKey || payload.idempotencyKey || '').trim()
+    if (!key) {
+      throw new Error('Chave de idempotência é obrigatória.')
+    }
+
+    const fingerprint = computeOrderFingerprint(payload)
+    if (!this.state.orders) this.state.orders = {}
+    if (!this.state.idempotencyRecords) this.state.idempotencyRecords = {}
+
+    const existingRecord = this.state.idempotencyRecords[key]
+    if (existingRecord) {
+      if (existingRecord.payloadFingerprint === fingerprint) {
+        const existingOrder = this.state.orders[existingRecord.orderId]
+        if (existingOrder) {
+          return existingOrder
+        }
+      } else {
+        throw new Error('IDEMPOTENCY_CONFLICT: Chave de idempotência já utilizada com payload diferente.')
+      }
+    }
+
+    // Revalidação estrita contra os fixtures atuais (catálogo oficial)
+    for (const item of payload.items) {
+      const nft = nftFixtures.find((n) => n.id === item.nftId)
+      if (!nft) {
+        throw new Error(`CONFLITO_PEDIDO: NFT "${item.nftId}" não encontrado.`)
+      }
+      const edition = nft.editions.find((e) => e.id === item.editionId) ?? nft.editions[0]
+      if (!edition) {
+        throw new Error(`CONFLITO_PEDIDO: Edição "${item.editionId}" não encontrada.`)
+      }
+      if (edition.available <= 0) {
+        throw new Error(`ITEM_ESGOTADO: A obra "${nft.name}" está esgotada.`)
+      }
+      if (edition.available < item.quantity) {
+        throw new Error(
+          `ESTOQUE_ALTERADO: Quantidade solicitada de "${nft.name}" excede estoque disponível (${edition.available}).`,
+        )
+      }
+      if (edition.priceEth !== item.unitPriceEth) {
+        throw new Error(
+          `PRECO_ALTERADO: O preço de "${nft.name}" foi alterado de ${item.unitPriceEth} ETH para ${edition.priceEth} ETH.`,
+        )
+      }
+    }
+
+    const orderId = `ord-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+    const orderItems: OrderItem[] = payload.items.map((pi) => {
+      const nft = nftFixtures.find((n) => n.id === pi.nftId)
+      const edition = nft?.editions.find((e) => e.id === pi.editionId) ?? nft?.editions[0]
+      return {
+        id: `${pi.nftId}:${pi.editionId}`,
+        nftId: pi.nftId,
+        editionId: pi.editionId,
+        name: nft?.name ?? pi.nftId,
+        collectionName: nft?.collection.name ?? '',
+        imageUrl: nft?.imageUrl ?? '',
+        editionName: edition?.name ?? 'Standard',
+        editionNumber: edition?.editionNumber ?? '#01',
+        unitPriceEth: pi.unitPriceEth,
+        quantity: pi.quantity,
+        subtotalEth: multiplyEth(pi.unitPriceEth, pi.quantity),
+      }
+    })
+
+    const coupon = payload.couponCode ? this.resolveCoupon(payload.couponCode, payload.subtotalEth) : null
+
+    const newOrder: Order = {
+      id: orderId,
+      idempotencyKey: key,
+      userId,
+      buyer: payload.buyer,
+      items: orderItems,
+      subtotalEth: payload.subtotalEth,
+      discountEth: payload.discountEth,
+      networkFeeEth: payload.networkFeeEth,
+      totalEth: payload.totalEth,
+      coupon,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      version: 1,
+    }
+
+    this.state.orders[orderId] = newOrder
+    this.state.idempotencyRecords[key] = {
+      orderId,
+      payloadFingerprint: fingerprint,
+    }
+    this.saveToStorage()
+
+    // Cenário determinístico de timeout após criação no servidor
+    if (this.state.scenarios.timeoutAfterOrderCreate) {
+      this.state.scenarios.timeoutAfterOrderCreate = false
+      this.saveToStorage()
+      throw new Error('TIMEOUT_AFTER_CREATE')
+    }
+
+    return newOrder
+  }
+
+  public getOrder(orderId: string): Order | null {
+    if (!this.state.orders) return null
+    return this.state.orders[orderId] ?? null
+  }
+
+  public simulatePayment(orderId: string, action?: 'confirm' | 'decline' | 'pending'): Order {
+    if (!this.state.orders) this.state.orders = {}
+    const order = this.state.orders[orderId]
+    if (!order) {
+      throw new Error('Pedido não encontrado.')
+    }
+
+    const outcome = action ?? this.state.scenarios.nextPaymentResult ?? 'confirmed'
+    this.state.scenarios.nextPaymentResult = null
+
+    if (outcome === 'confirmed') {
+      order.status = 'confirmed'
+      order.confirmedAt = new Date().toISOString()
+      order.transactionHash =
+        '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
+      order.version += 1
+
+      // 1. Reduz estoque das edições compradas nos fixtures
+      for (const item of order.items) {
+        const nft = nftFixtures.find((n) => n.id === item.nftId)
+        if (nft) {
+          const edition = nft.editions.find((e) => e.id === item.editionId) ?? nft.editions[0]
+          if (edition) {
+            edition.available = Math.max(0, edition.available - item.quantity)
+            this.setNftOverride(item.nftId, {
+              available: edition.available,
+              editionId: edition.id,
+              version: (nft.version || 1) + 1,
+            })
+          }
+        }
+      }
+
+      // 2. Remove estritamente os itens e quantidades comprados do carrinho do comprador
+      const rawCart = this.state.carts?.[order.userId]
+      if (rawCart) {
+        for (const item of order.items) {
+          const cartItemIndex = rawCart.items.findIndex(
+            (ci) => ci.nftId === item.nftId && ci.editionId === item.editionId,
+          )
+          if (cartItemIndex >= 0) {
+            const cartItem = rawCart.items[cartItemIndex]!
+            if (cartItem.quantity <= item.quantity) {
+              rawCart.items.splice(cartItemIndex, 1)
+            } else {
+              cartItem.quantity -= item.quantity
+            }
+          }
+        }
+        if (rawCart.items.length === 0) {
+          rawCart.couponCode = null
+        }
+      }
+
+      this.saveToStorage()
+      return order
+    }
+
+    if (outcome === 'declined') {
+      order.status = 'declined'
+      order.declineReason = 'Simulação de pagamento recusada pela carteira.'
+      order.version += 1
+      this.saveToStorage()
+      return order
+    }
+
+    // Pending
+    order.status = 'pending'
+    this.saveToStorage()
+    return order
+  }
+
+  public updateOrderStatus(
+    orderId: string,
+    status: OrderStatus,
+    transactionHash?: string,
+    declineReason?: string,
+  ): Order | undefined {
+    const order = this.state.orders[orderId]
+    if (!order) return undefined
+    order.status = status
+    if (transactionHash) order.transactionHash = transactionHash
+    if (declineReason) order.declineReason = declineReason
+    order.version += 1
+    if (status === 'confirmed') {
+      const rawCart = this.state.carts?.[order.userId]
+      if (rawCart) {
+        for (const boughtItem of order.items) {
+          const cartItemIdx = rawCart.items.findIndex(
+            (ci) => ci.nftId === boughtItem.nftId && ci.editionId === boughtItem.editionId,
+          )
+          if (cartItemIdx >= 0) {
+            const item = rawCart.items[cartItemIdx]!
+            if (item.quantity <= boughtItem.quantity) {
+              rawCart.items.splice(cartItemIdx, 1)
+            } else {
+              item.quantity -= boughtItem.quantity
+            }
+          }
+        }
+        if (rawCart.items.length === 0) {
+          rawCart.couponCode = null
+        }
+      }
+    }
+    this.saveToStorage()
+    return order
+  }
+
+  public setTimeoutAfterOrderCreate(timeout: boolean): void {
+    this.state.scenarios.timeoutAfterOrderCreate = timeout
+    this.saveToStorage()
+  }
+
+  public setFailNextOrderCreate(fail: boolean): void {
+    this.state.scenarios.failNextOrderCreate = fail
+    this.saveToStorage()
+  }
+
+  public setNextPaymentResult(result: OrderStatus | null): void {
+    this.state.scenarios.nextPaymentResult = result
+    this.saveToStorage()
   }
 }
 

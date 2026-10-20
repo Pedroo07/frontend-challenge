@@ -1,6 +1,6 @@
 import { toSocketIo } from '@mswjs/socket.io-binding'
 import { ws } from 'msw'
-import type { NftUpdatedEvent } from './contracts'
+import type { NftUpdatedEvent, OrderUpdatedEvent } from './contracts'
 
 const socketOrigin = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
 const socketLink = ws.link(socketOrigin)
@@ -24,6 +24,17 @@ export function emitNftUpdateToClients(event: NftUpdatedEvent) {
     }
   }
 }
+
+export function emitOrderUpdateToClients(event: OrderUpdatedEvent) {
+  for (const client of activeClients) {
+    try {
+      client.emit('order.updated', event)
+    } catch (err) {
+      console.warn('Falha ao emitir order.updated para cliente socket', err)
+    }
+  }
+}
+
 
 export const socketHandlers = [
   socketLink.addEventListener('connection', (connection) => {

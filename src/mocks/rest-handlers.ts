@@ -1,8 +1,16 @@
 import { http, HttpResponse } from 'msw'
-import type { HealthResponse, NftListParams, NftUpdatedEvent } from './contracts'
+import type {
+  CreateOrderPayload,
+  HealthResponse,
+  NftListParams,
+  NftUpdatedEvent,
+  OrderStatus,
+  OrderUpdatedEvent,
+} from './contracts'
 import { nftFixtures, summarizeNft, updateNftFixture } from './fixtures/nfts'
 import { mockStore } from './mock-store'
-import { emitNftUpdateToClients } from './socket-handlers'
+import { emitNftUpdateToClients, emitOrderUpdateToClients } from './socket-handlers'
+
 
 function readPositiveInteger(value: string | null, fallback: number, max: number): number {
   const parsed = Number(value)
@@ -405,6 +413,140 @@ export const restHandlers = [
       return HttpResponse.json({ success: true, event, nft: updated })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Falha ao emitir evento de teste.'
+      return HttpResponse.json({ message }, { status: 400 })
+    }
+  }),
+
+  // Orders endpoints
+  http.post('/api/orders', async ({ request }) => {
+    const token = extractBearerToken(request)
+    if (!token) {
+      return HttpResponse.json({ message: 'Autenticação necessária para finalizar a compra.' }, { status: 401 })
+    }
+
+    const session = mockStore.getSession(token)
+    if (!session) {
+      return HttpResponse.json({ message: 'Sessão não encontrada.' }, { status: 401 })
+    }
+    if (session.expired) {
+      return HttpResponse.json({ message: 'Sessão expirada.' }, { status: 401 })
+    }
+
+    try {
+      const body = (await request.json()) as CreateOrderPayload
+      const idempotencyKey = request.headers.get('Idempotency-Key') ?? body.idempotencyKey ?? ''
+      const order = mockStore.createOrder(session.user.id, body, idempotencyKey)
+      return HttpResponse.json(order, { status: 201 })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Falha ao processar pedido.'
+
+      if (message.includes('TIMEOUT_AFTER_CREATE')) {
+        return HttpResponse.json({ message: 'Timeout simulado pós-criação do pedido.' }, { status: 504 })
+      }
+      if (message.includes('IDEMPOTENCY_CONFLICT')) {
+        return HttpResponse.json(
+          { message: 'Chave de idempotência já utilizada com payload diferente.' },
+          { status: 409 },
+        )
+      }
+      if (
+        message.includes('PRECO_ALTERADO') ||
+        message.includes('ESTOQUE_ALTERADO') ||
+        message.includes('ITEM_ESGOTADO')
+      ) {
+        return HttpResponse.json({ message, conflict: true }, { status: 409 })
+      }
+      if (message.includes('FALHA_CRIACAO_PEDIDO')) {
+        return HttpResponse.json({ message: 'Serviço temporariamente indisponível.' }, { status: 503 })
+      }
+
+      return HttpResponse.json({ message }, { status: 400 })
+    }
+  }),
+
+  http.get('/api/orders/:orderId', ({ request, params }) => {
+    const token = extractBearerToken(request)
+    if (!token) {
+      return HttpResponse.json({ message: 'Autenticação necessária para consultar o pedido.' }, { status: 401 })
+    }
+
+    const session = mockStore.getSession(token)
+    if (!session) {
+      return HttpResponse.json({ message: 'Sessão não encontrada.' }, { status: 401 })
+    }
+    if (session.expired) {
+      return HttpResponse.json({ message: 'Sessão expirada.' }, { status: 401 })
+    }
+
+    const order = mockStore.getOrder(String(params.orderId))
+    if (!order) {
+      return HttpResponse.json({ message: 'Pedido não encontrado.' }, { status: 404 })
+    }
+
+    return HttpResponse.json(order)
+  }),
+
+  http.post('/api/orders/:orderId/pay', async ({ request, params }) => {
+    const token = extractBearerToken(request)
+    if (!token) {
+      return HttpResponse.json({ message: 'Autenticação necessária para processar pagamento.' }, { status: 401 })
+    }
+
+    const session = mockStore.getSession(token)
+    if (!session) {
+      return HttpResponse.json({ message: 'Sessão não encontrada.' }, { status: 401 })
+    }
+    if (session.expired) {
+      return HttpResponse.json({ message: 'Sessão expirada.' }, { status: 401 })
+    }
+
+    try {
+      const body = (await request.json().catch(() => ({}))) as { action?: 'confirm' | 'decline' | 'pending' }
+      const order = mockStore.simulatePayment(String(params.orderId), body.action)
+
+      emitOrderUpdateToClients({
+        orderId: order.id,
+        status: order.status,
+        declineReason: order.declineReason,
+        transactionHash: order.transactionHash,
+        version: order.version,
+      })
+
+      return HttpResponse.json(order)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Falha ao processar pagamento.'
+      return HttpResponse.json({ message }, { status: 400 })
+    }
+  }),
+
+  // Scenarios endpoints for order & payment testing
+  http.post('/api/_mock/scenarios/order-payment-result', async ({ request }) => {
+    const body = (await request.json().catch(() => ({}))) as { result?: OrderStatus | null }
+    mockStore.setNextPaymentResult(body.result ?? null)
+    return HttpResponse.json({ result: body.result })
+  }),
+
+  http.post('/api/_mock/scenarios/order-timeout-after-create', async ({ request }) => {
+    const body = (await request.json().catch(() => ({ enabled: true }))) as { enabled?: boolean }
+    mockStore.setTimeoutAfterOrderCreate(body.enabled !== false)
+    return HttpResponse.json({ enabled: body.enabled !== false })
+  }),
+
+  http.post('/api/_mock/scenarios/create-order-error-once', () => {
+    mockStore.setFailNextOrderCreate(true)
+    return HttpResponse.json({ enabled: true })
+  }),
+
+  http.post('/api/_mock/scenarios/emit-order-update', async ({ request }) => {
+    try {
+      const body = (await request.json()) as OrderUpdatedEvent
+      if (body.orderId) {
+        mockStore.updateOrderStatus(body.orderId, body.status, body.transactionHash, body.declineReason)
+      }
+      emitOrderUpdateToClients(body)
+      return HttpResponse.json({ success: true, event: body })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Falha ao emitir evento de teste order.updated.'
       return HttpResponse.json({ message }, { status: 400 })
     }
   }),

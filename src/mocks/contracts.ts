@@ -179,3 +179,74 @@ export type MergeCartResponse = {
   items: CartItem[]
   conflicts: CartQuoteConflict[]
 }
+
+export type OrderBuyer = {
+  name: string
+  email: string
+  walletAddress: string
+  network: string
+}
+
+export type OrderItem = {
+  id: string
+  nftId: string
+  editionId: string
+  name: string
+  collectionName: string
+  imageUrl: string
+  editionName: string
+  editionNumber: string
+  unitPriceEth: string
+  quantity: number
+  subtotalEth: string
+}
+
+export type OrderStatus = 'pending' | 'confirmed' | 'declined'
+
+export type Order = {
+  id: string
+  idempotencyKey: string
+  userId: string
+  buyer: OrderBuyer
+  items: OrderItem[]
+  subtotalEth: string
+  discountEth: string
+  networkFeeEth: string
+  totalEth: string
+  coupon: CartCoupon | null
+  status: OrderStatus
+  declineReason?: string
+  transactionHash?: string
+  createdAt: string
+  confirmedAt?: string
+  version: number
+}
+
+export type CreateOrderPayload = {
+  idempotencyKey: string
+  buyer: OrderBuyer
+  items: {
+    nftId: string
+    editionId: string
+    quantity: number
+    unitPriceEth: string
+  }[]
+  subtotalEth: string
+  discountEth: string
+  networkFeeEth: string
+  totalEth: string
+  couponCode?: string | null
+}
+
+export type SimulatePaymentPayload = {
+  action?: 'confirm' | 'decline' | 'pending'
+}
+
+export type OrderUpdatedEvent = {
+  orderId: string
+  status: OrderStatus
+  declineReason?: string
+  transactionHash?: string
+  version: number
+}
+
