@@ -2,12 +2,14 @@ import { useQueryClient } from '@tanstack/react-query'
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { io, type Socket } from 'socket.io-client'
 import { triggerMockNftUpdate } from './cart-api'
-import type { NftUpdatedEvent } from '@/mocks/contracts'
+import type { NftUpdatedEvent, OrderUpdatedEvent } from '@/mocks/contracts'
 
 type SocketContextValue = {
+  socket: Socket | null
   isConnected: boolean
   socketStatus: string
   lastUpdate: NftUpdatedEvent | null
+  lastOrderUpdate: OrderUpdatedEvent | null
   updatedNfts: Record<string, NftUpdatedEvent>
   clearUpdatedNotice: (nftId: string) => void
   triggerDemoUpdate: (payload: {
@@ -23,12 +25,15 @@ const SocketContext = createContext<SocketContextValue | null>(null)
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient()
+  const [socketInstance, setSocketInstance] = useState<Socket | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [socketStatus, setSocketStatus] = useState('Conectando')
   const [lastUpdate, setLastUpdate] = useState<NftUpdatedEvent | null>(null)
+  const [lastOrderUpdate, setLastOrderUpdate] = useState<OrderUpdatedEvent | null>(null)
   const [updatedNfts, setUpdatedNfts] = useState<Record<string, NftUpdatedEvent>>({})
 
   const lastVersionsRef = useRef<Map<string, number>>(new Map())
+  const orderVersionsRef = useRef<Map<string, number>>(new Map())
   const socketRef = useRef<Socket | null>(null)
 
   useEffect(() => {
@@ -45,6 +50,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       timeout: 5000,
     })
     socketRef.current = socket
+    setSocketInstance(socket)
 
     let hasConnectedOnce = false
 
@@ -56,6 +62,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         void queryClient.invalidateQueries({ queryKey: ['nfts'] })
         void queryClient.invalidateQueries({ queryKey: ['cart'] })
         void queryClient.invalidateQueries({ queryKey: ['cart', 'quote'] })
+        void queryClient.invalidateQueries({ queryKey: ['orders'] })
       } else {
         hasConnectedOnce = true
       }
@@ -91,18 +98,40 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       void queryClient.invalidateQueries({ queryKey: ['cart', 'quote'] })
     }
 
+    const handleOrderUpdate = (event: OrderUpdatedEvent) => {
+      if (!event || !event.orderId) return
+
+      // Validação de versão monotônica para pedidos: ignora versões menores ou iguais à última vista
+      const lastVersion = orderVersionsRef.current.get(event.orderId) ?? 0
+      if (event.version <= lastVersion) {
+        return
+      }
+      orderVersionsRef.current.set(event.orderId, event.version)
+
+      setLastOrderUpdate(event)
+
+      // Atualiza e invalida as consultas do pedido e do carrinho
+      void queryClient.invalidateQueries({ queryKey: ['orders', event.orderId] })
+      void queryClient.invalidateQueries({ queryKey: ['orders'] })
+      void queryClient.invalidateQueries({ queryKey: ['cart'] })
+      void queryClient.invalidateQueries({ queryKey: ['cart', 'quote'] })
+    }
+
     socket.on('connect', handleConnect)
     socket.on('disconnect', handleDisconnect)
     socket.on('connect_error', handleConnectError)
     socket.on('nft.updated', handleNftUpdate)
+    socket.on('order.updated', handleOrderUpdate)
 
     return () => {
       socket.off('connect', handleConnect)
       socket.off('disconnect', handleDisconnect)
       socket.off('connect_error', handleConnectError)
       socket.off('nft.updated', handleNftUpdate)
+      socket.off('order.updated', handleOrderUpdate)
       socket.disconnect()
       socketRef.current = null
+      setSocketInstance(null)
     }
   }, [queryClient])
 
@@ -126,14 +155,16 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<SocketContextValue>(
     () => ({
+      socket: socketInstance,
       isConnected,
       socketStatus,
       lastUpdate,
+      lastOrderUpdate,
       updatedNfts,
       clearUpdatedNotice,
       triggerDemoUpdate,
     }),
-    [isConnected, socketStatus, lastUpdate, updatedNfts, clearUpdatedNotice, triggerDemoUpdate],
+    [socketInstance, isConnected, socketStatus, lastUpdate, lastOrderUpdate, updatedNfts, clearUpdatedNotice, triggerDemoUpdate],
   )
 
   return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>
@@ -146,4 +177,54 @@ export function useSocket(): SocketContextValue {
     throw new Error('useSocket deve ser utilizado dentro de um SocketProvider.')
   }
   return context
+}
+
+/**
+ * Hook para escutar atualizações em tempo real de um NFT específico.
+ * Respeita descarte de duplicatas por eventId e controle de versões monotônicas.
+ * Garante cleanup dos listeners ao desmontar o componente.
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export function useNftSocket(
+  nftId: string,
+  onUpdate?: (event: NftUpdatedEvent) => void,
+) {
+  const { socket } = useSocket()
+  const queryClient = useQueryClient()
+  const lastVersionRef = useRef<number>(0)
+  const processedEventIdsRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!socket || !nftId) return
+
+    const handleUpdate = (event: NftUpdatedEvent & { eventId?: string }) => {
+      if (!event || event.nftId !== nftId) return
+
+      // Ignora duplicatas por eventId caso fornecido
+      if (event.eventId) {
+        if (processedEventIdsRef.current.has(event.eventId)) {
+          return
+        }
+        processedEventIdsRef.current.add(event.eventId)
+      }
+
+      // Ignora versões menores ou iguais (versões obsoletas ou duplicadas)
+      if (typeof event.version === 'number') {
+        if (event.version <= lastVersionRef.current) {
+          return
+        }
+        lastVersionRef.current = event.version
+      }
+
+      // Revalida dados de detalhe do NFT
+      void queryClient.invalidateQueries({ queryKey: ['nfts', 'detail', nftId] })
+      onUpdate?.(event)
+    }
+
+    socket.on('nft.updated', handleUpdate)
+
+    return () => {
+      socket.off('nft.updated', handleUpdate)
+    }
+  }, [socket, nftId, queryClient, onUpdate])
 }
