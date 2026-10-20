@@ -35,9 +35,9 @@ function LoginPage() {
       const destination = search.redirect && search.redirect.startsWith('/') ? search.redirect : '/'
       if (destination.startsWith('/nfts/')) {
         const nftId = destination.replace('/nfts/', '').split('?')[0] ?? ''
-        void navigate({ to: '/nfts/$nftId', params: { nftId } })
+        await navigate({ to: '/nfts/$nftId', params: { nftId } })
       } else if (destination === '/') {
-        void navigate({ to: '/', search: catalogSearchDefaults })
+        await navigate({ to: '/', search: catalogSearchDefaults })
       } else {
         window.location.assign(destination)
       }

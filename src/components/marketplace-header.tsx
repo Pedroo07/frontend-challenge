@@ -2,15 +2,23 @@ import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { useCart } from '@/lib/cart-context'
+import { catalogSearchDefaults } from '@/lib/catalog-options'
 
 type MarketplaceHeaderProps = {
   query?: string
   onQueryChange?: (value: string) => void
   onFiltersClick?: () => void
   filtersOpen?: boolean
+  activeNav?: 'inicio' | 'mercado' | 'criadores' | 'aprenda'
 }
 
-export function MarketplaceHeader({ query = '', onQueryChange, onFiltersClick, filtersOpen = false }: MarketplaceHeaderProps) {
+export function MarketplaceHeader({
+  query = '',
+  onQueryChange,
+  onFiltersClick,
+  filtersOpen = false,
+  activeNav = 'inicio',
+}: MarketplaceHeaderProps) {
   const [desktopSearchOpen, setDesktopSearchOpen] = useState(false)
   const desktopSearchRef = useRef<HTMLInputElement>(null)
   const { user, isAuthenticated, logout } = useAuth()
@@ -28,19 +36,68 @@ export function MarketplaceHeader({ query = '', onQueryChange, onFiltersClick, f
     await logout()
   }
 
+  const isInicioActive = activeNav === 'inicio'
+  const isMercadoActive = activeNav === 'mercado'
+  const isCriadoresActive = activeNav === 'criadores'
+  const isAprendaActive = activeNav === 'aprenda'
+
   return (
     <>
       <header id="top" className="hidden border-b border-border-soft md:block">
         <div className="relative mx-auto flex h-[76px] max-w-300 items-center justify-between gap-6 px-6 lg:px-0">
-          <a href="#top" aria-label="Kurio, início" className="shrink-0 font-mono text-sm font-bold tracking-[0.12em] text-foreground">
+          <Link
+            to="/"
+            search={catalogSearchDefaults}
+            aria-label="Kurio, início"
+            className="shrink-0 font-mono text-sm font-bold tracking-[0.12em] text-foreground"
+          >
             KURIO
-          </a>
+          </Link>
 
           <nav aria-label="Navegação principal" className="flex h-full items-center gap-8 font-mono text-sm font-medium text-muted-foreground">
-            <a href="#top" aria-current="page" className="relative flex h-full items-center text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary">Início</a>
-            <a href="#catalog" className="transition-colors hover:text-foreground">Mercado</a>
-            <a href="#creators" className="transition-colors hover:text-foreground">Criadores</a>
-            <a href="#learn" className="transition-colors hover:text-foreground">Aprenda</a>
+            <Link
+              to="/"
+              search={catalogSearchDefaults}
+              aria-current={isInicioActive ? 'page' : undefined}
+              className={`relative flex h-full items-center transition-colors hover:text-foreground ${
+                isInicioActive ? 'text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary' : ''
+              }`}
+            >
+              Início
+            </Link>
+            <Link
+              to="/"
+              hash="catalog"
+              search={catalogSearchDefaults}
+              aria-current={isMercadoActive ? 'page' : undefined}
+              className={`relative flex h-full items-center transition-colors hover:text-foreground ${
+                isMercadoActive ? 'text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary' : ''
+              }`}
+            >
+              Mercado
+            </Link>
+            <Link
+              to="/"
+              hash="creators"
+              search={catalogSearchDefaults}
+              aria-current={isCriadoresActive ? 'page' : undefined}
+              className={`relative flex h-full items-center transition-colors hover:text-foreground ${
+                isCriadoresActive ? 'text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary' : ''
+              }`}
+            >
+              Criadores
+            </Link>
+            <Link
+              to="/"
+              hash="learn"
+              search={catalogSearchDefaults}
+              aria-current={isAprendaActive ? 'page' : undefined}
+              className={`relative flex h-full items-center transition-colors hover:text-foreground ${
+                isAprendaActive ? 'text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary' : ''
+              }`}
+            >
+              Aprenda
+            </Link>
           </nav>
 
           <div className="flex shrink-0 items-center gap-5 text-muted-foreground">
