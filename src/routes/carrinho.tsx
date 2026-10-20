@@ -35,8 +35,8 @@ function CartPage() {
   const [couponError, setCouponError] = useState<string | null>(null)
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false)
   const [demoOpen, setDemoOpen] = useState(false)
+  const [recommendationPage, setRecommendationPage] = useState(0)
 
-  // Obras recomendadas para a seção "Colecionadores também viram"
   const recommendationsQuery = useQuery({
     queryKey: ['nfts', 'recommendations'],
     queryFn: ({ signal }) =>
@@ -56,7 +56,13 @@ function CartPage() {
     staleTime: 60_000,
   })
 
-  const recommendedItems: NftListItem[] = (recommendationsQuery.data?.items ?? []).slice(0, 5)
+  const allRecommendations: NftListItem[] = recommendationsQuery.data?.items ?? []
+  const pageSize = 5
+  const totalRecs = allRecommendations.length
+  const startIndex = (recommendationPage * pageSize) % Math.max(1, totalRecs)
+  const recommendedItems = totalRecs <= pageSize
+    ? allRecommendations
+    : Array.from({ length: Math.min(pageSize, totalRecs) }, (_, i) => allRecommendations[(startIndex + i) % totalRecs]!)
 
   const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -83,8 +89,8 @@ function CartPage() {
     setCouponError(null)
     try {
       await removeCoupon()
-    } catch {
-      // Handled by context
+    } catch  {
+      void 0
     }
   }
 
@@ -94,10 +100,9 @@ function CartPage() {
 
   return (
     <div className="min-h-svh overflow-x-clip bg-background font-mono text-foreground">
-      <MarketplaceHeader activeNav="mercado" />
+      <MarketplaceHeader activeNav="mercado" showMobileTabBar={false} showMobileHeader={false} />
 
       <main className="mx-auto w-full max-w-300 px-4 py-4 sm:px-6 sm:py-6 lg:px-0">
-        {/* Mobile Header com botão voltar e título (Figma Mobile 390px) */}
         <div className="flex items-center gap-3 pb-5 md:hidden">
           <Link
             to="/"
@@ -112,7 +117,6 @@ function CartPage() {
           </h1>
         </div>
 
-        {/* Desktop Breadcrumb & Heading (Figma Desktop 1440px) */}
         <div className="hidden md:block pb-5">
           <nav aria-label="Navegação estrutural" className="flex items-center gap-2 text-xs text-muted-foreground">
             <Link
@@ -144,12 +148,12 @@ function CartPage() {
               <span
                 className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
                   isConnected
-                    ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                    : 'border border-amber-500/30 bg-amber-500/10 text-amber-400'
+                    ? 'border border-success/30 bg-success/10 text-success'
+                    : 'border border-warning/30 bg-warning/10 text-warning'
                 }`}
               >
                 <span
-                  className={`size-2 rounded-full ${isConnected ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`}
+                  className={`size-2 rounded-full ${isConnected ? 'bg-success' : 'bg-warning animate-pulse'}`}
                 />
                 Socket.IO: {isConnected ? 'Ativo' : socketStatus}
               </span>
@@ -165,7 +169,6 @@ function CartPage() {
           </div>
         </div>
 
-        {/* Painel de Demonstração Interativa Socket.IO */}
         {demoOpen && (
           <section
             aria-label="Controles de demonstração em tempo real"
@@ -264,7 +267,6 @@ function CartPage() {
           </section>
         )}
 
-        {/* Banner de tempo real caso itens tenham sido alterados */}
         {hasSocketUpdatesInCart && (
           <div
             role="status"
@@ -286,7 +288,6 @@ function CartPage() {
           <EmptyCartView />
         ) : (
           <div className="grid gap-8 lg:grid-cols-[1fr_380px] xl:grid-cols-[1fr_420px] items-start">
-            {/* Coluna Esquerda: Listagem de Itens (Tabela Desktop / Cards Mobile) */}
             <section aria-labelledby="cart-items-heading" className="space-y-4">
               <div className="flex items-center justify-between pb-1">
                 <h2 id="cart-items-heading" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -302,7 +303,6 @@ function CartPage() {
                 </button>
               </div>
 
-              {/* Alerta de conflitos do quote (ex: esgotado ou preço alterado) */}
               {quote?.conflicts && quote.conflicts.length > 0 && (
                 <div
                   role="alert"
@@ -318,7 +318,6 @@ function CartPage() {
                 </div>
               )}
 
-              {/* Cabeçalho da Tabela (Visível em Desktop) */}
               <div
                 aria-hidden="true"
                 className="hidden md:grid md:grid-cols-[1fr_120px_140px_120px_44px] items-center gap-4 border-b border-border-soft pb-3 font-mono text-xs font-semibold text-muted-foreground uppercase tracking-wider"
@@ -330,8 +329,7 @@ function CartPage() {
                 <span className="sr-only">Ações</span>
               </div>
 
-              {/* Lista dos Itens */}
-              <ul className="space-y-3 md:space-y-0" role="list">
+              <ul className="space-y-3 md:space-y-0 pb-96 md:pb-0" role="list">
                 {items.map((item) => (
                   <CartItemUnifiedRow
                     key={item.id}
@@ -344,14 +342,15 @@ function CartPage() {
               </ul>
             </section>
 
-            {/* Coluna Direita: Resumo da Carteira (Figma) */}
-            <aside aria-labelledby="order-summary-heading">
-              <div className="rounded-2xl sm:rounded-3xl border border-border/40 bg-card p-5 sm:p-6 shadow-xl lg:sticky lg:top-6">
+            <aside
+              aria-labelledby="order-summary-heading"
+              className="fixed bottom-0 inset-x-0 z-30 max-h-[85vh] overflow-y-auto rounded-t-3xl border-t border-border-soft bg-card/95 p-5 backdrop-blur-md shadow-[0_-12px_36px_rgba(0,0,0,0.7)] md:relative md:inset-auto md:max-h-none md:rounded-3xl md:border md:bg-card md:shadow-xl lg:sticky lg:top-6"
+            >
+              <div>
                 <h2 id="order-summary-heading" className="font-mono text-base font-bold text-foreground">
                   Resumo da carteira
                 </h2>
 
-                {/* Formulário de Cupom de Desconto */}
                 <form onSubmit={handleApplyCoupon} className="mt-4 border-b border-border-soft pb-5">
                   <label
                     htmlFor="cart-coupon-input"
@@ -386,14 +385,14 @@ function CartPage() {
                   )}
 
                   {coupon && (
-                    <div className="mt-2.5 flex items-center justify-between rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 font-mono text-xs text-emerald-400">
+                    <div className="mt-2.5 flex items-center justify-between rounded border border-success/30 bg-success/10 px-3 py-1.5 font-mono text-xs text-success">
                       <span>
                         Cupom <strong>{coupon.code}</strong> ({coupon.discountPercent}% OFF)
                       </span>
                       <button
                         type="button"
                         onClick={() => void handleRemoveCoupon()}
-                        className="text-[11px] underline hover:text-emerald-200"
+                        className="text-[11px] underline hover:text-success"
                       >
                         Remover
                       </button>
@@ -405,7 +404,6 @@ function CartPage() {
                   </div>
                 </form>
 
-                {/* Valores Financeiros */}
                 {quoteError ? (
                   <div role="alert" className="my-5 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
                     <p className="font-semibold">{quoteError}</p>
@@ -419,7 +417,6 @@ function CartPage() {
                   </div>
                 ) : (
                   <div className="my-5 space-y-3 font-mono text-xs sm:text-sm">
-                    {/* Subtotal */}
                     <div className="flex items-center justify-between text-foreground">
                       <span>Subtotal</span>
                       <span className="font-bold tabular-nums">
@@ -427,7 +424,6 @@ function CartPage() {
                       </span>
                     </div>
 
-                    {/* Desconto do Cupom */}
                     <div className="flex items-center justify-between text-foreground">
                       <span>Desconto do lançamento</span>
                       <span className="font-bold tabular-nums text-foreground">
@@ -437,7 +433,6 @@ function CartPage() {
                       </span>
                     </div>
 
-                    {/* Taxa de Rede */}
                     <div className="space-y-0.5">
                       <div className="flex items-center justify-between text-foreground">
                         <span>Taxa de rede</span>
@@ -450,7 +445,6 @@ function CartPage() {
                       </div>
                     </div>
 
-                    {/* Total Final */}
                     <div className="border-t border-border-soft pt-4">
                       <div className="flex items-baseline justify-between">
                         <span className="text-sm font-bold text-foreground sm:text-base">Total</span>
@@ -470,7 +464,6 @@ function CartPage() {
                   </div>
                 )}
 
-                {/* Botão de Finalização / Checkout */}
                 {items.length === 0 || isMutating || Boolean(quoteError) || (quote !== null && !quote.isValid) ? (
                   <button
                     type="button"
@@ -489,7 +482,6 @@ function CartPage() {
                   </Link>
                 )}
 
-                {/* Link Continuar Explorando */}
                 <div className="mt-3 text-center">
                   <Link
                     to="/"
@@ -504,7 +496,6 @@ function CartPage() {
           </div>
         )}
 
-        {/* Seção Colecionadores também viram (Figma Desktop) */}
         {recommendedItems.length > 0 && (
           <section aria-labelledby="recommendations-heading" className="mt-16 border-t border-border-soft pt-10">
             <h2 id="recommendations-heading" className="font-mono text-base font-bold text-primary">
@@ -544,11 +535,20 @@ function CartPage() {
               ))}
             </div>
 
-            {/* Indicador de Paginação Visual (3 pontos: o • o) */}
-            <div className="mt-6 flex items-center justify-center gap-2" aria-hidden="true">
-              <span className="size-2 rounded-full border border-border-soft bg-transparent" />
-              <span className="size-2 rounded-full bg-primary" />
-              <span className="size-2 rounded-full border border-border-soft bg-transparent" />
+            <div className="mt-6 flex items-center justify-center gap-2.5" aria-label="Navegação de recomendações">
+              {[0, 1, 2].map((idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  aria-label={`Recomendações página ${idx + 1}`}
+                  onClick={() => setRecommendationPage(idx)}
+                  className={`size-2.5 rounded-full transition-all focus-visible:outline-2 focus-visible:outline-primary ${
+                    recommendationPage === idx
+                      ? 'bg-primary scale-125'
+                      : 'border border-border-soft bg-transparent hover:border-primary'
+                  }`}
+                />
+              ))}
             </div>
           </section>
         )}
@@ -559,12 +559,7 @@ function CartPage() {
   )
 }
 
-/**
- * Linha de item unificada:
- * - Em Mobile (< md): Estilizada como Card arredondado com borda e espaçamento (Figma Mobile 390px).
- * - Em Desktop (>= md): Estilizada como Linha de Tabela com colunas fixas e divisores (Figma Desktop 1440px).
- * Sem duplicação de IDs ou TestIDs para garantir conformidade estrita com o Playwright.
- */
+
 function CartItemUnifiedRow({
   item,
   isMutating,
@@ -582,10 +577,9 @@ function CartItemUnifiedRow({
   return (
     <li
       data-testid={`cart-item-${item.nftId}`}
-      className="flex flex-col gap-3 rounded-2xl border border-border/40 bg-card p-4 shadow-sm md:grid md:grid-cols-[1fr_120px_140px_120px_44px] md:items-center md:gap-4 md:rounded-none md:border-0 md:border-b md:border-border-soft md:bg-transparent md:p-0 md:py-4 transition"
+      className="flex items-center justify-between gap-3 rounded-2xl border border-border-soft/60 bg-card p-3 sm:p-4 shadow-sm md:grid md:grid-cols-[1fr_120px_140px_120px_44px] md:items-center md:gap-4 md:rounded-none md:border-0 md:border-b md:border-border-soft md:bg-transparent md:p-0 md:py-4 transition"
     >
-      {/* Coluna 1: Imagem + Nome + Token ID / Badges */}
-      <div className="flex items-center gap-3.5 min-w-0">
+      <div className="flex items-center gap-3.5 min-w-0 flex-1">
         <div className="relative size-16 sm:size-20 shrink-0 overflow-hidden rounded-xl bg-surface-raised">
           <img
             src={item.imageUrl}
@@ -596,7 +590,7 @@ function CartItemUnifiedRow({
         </div>
 
         <div className="min-w-0 flex-1">
-          <h3 className="truncate font-mono text-sm font-bold text-foreground sm:text-base">
+          <h3 className="truncate font-mono text-xs sm:text-base font-bold text-foreground">
             <Link
               to="/nfts/$nftId"
               params={{ nftId: item.nftId }}
@@ -606,12 +600,18 @@ function CartItemUnifiedRow({
             </Link>
           </h3>
 
-          <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-            ID do token: #{item.editionNumber || '0042'}
-            <span className="md:hidden"> · Edição: {item.quantity}/{item.available}</span>
+          <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+            Edição: {item.editionName || `${item.quantity}/${item.available}`}
           </p>
 
-          {/* Badges de Alteração ou Disponibilidade */}
+          <p className="mt-1 font-mono text-xs font-bold text-primary md:hidden">
+            {formatEth(item.unitPriceEth)} ETH
+          </p>
+
+          <span data-testid={`item-subtotal-${item.nftId}`} className="sr-only">
+            {formatEth(item.subtotalEth)} ETH
+          </span>
+
           <div className="mt-1 flex flex-wrap gap-1.5">
             {item.priceChanged && (
               <span className="rounded bg-amber-500/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-300">
@@ -631,78 +631,54 @@ function CartItemUnifiedRow({
         </div>
       </div>
 
-      {/* Coluna 2: Preço Unitário (Desktop) */}
       <div className="hidden md:block font-mono text-sm text-foreground">
         {formatEth(item.unitPriceEth)} ETH
       </div>
 
-      {/* Coluna 3: Edições / Controle Stepper (- Qtd +) */}
-      <div className="flex items-center justify-between md:justify-center border-t border-border/30 pt-3 md:border-t-0 md:pt-0">
-        <span className="font-mono text-xs text-muted-foreground md:hidden">Edições:</span>
-        <div className="flex items-center gap-2">
-          {/* Botão Diminuir */}
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             type="button"
             disabled={item.quantity <= 1 || isMutating}
             onClick={() => onUpdateQuantity(item.quantity - 1)}
             aria-label={`Diminuir quantidade de ${item.name}`}
-            className={`grid size-7 sm:size-8 place-items-center rounded-full font-mono text-xs font-bold transition focus-visible:outline-2 focus-visible:outline-primary ${
-              item.quantity <= 1 || isMutating
-                ? 'bg-surface-raised border border-border text-muted-foreground/40 cursor-not-allowed'
-                : 'bg-primary text-primary-foreground hover:bg-primary-light active:scale-95'
-            }`}
+            className="grid size-7 sm:size-8 place-items-center rounded-full font-mono text-xs font-bold transition focus-visible:outline-2 focus-visible:outline-primary bg-primary text-primary-foreground hover:bg-primary-light disabled:opacity-30 disabled:cursor-not-allowed"
           >
             −
           </button>
 
-          {/* Valor da Quantidade */}
           <span
             data-testid={`item-qty-${item.nftId}`}
             aria-label={`Quantidade: ${item.quantity}`}
-            className="w-7 sm:w-8 text-center font-mono text-xs sm:text-sm font-bold tabular-nums text-foreground"
+            className="w-6 sm:w-7 text-center font-mono text-xs sm:text-sm font-bold tabular-nums text-foreground"
           >
             {item.quantity}
           </span>
 
-          {/* Botão Aumentar */}
           <button
             type="button"
             disabled={item.quantity >= item.available || isMutating}
             onClick={() => onUpdateQuantity(item.quantity + 1)}
             aria-label={`Aumentar quantidade de ${item.name}`}
-            className={`grid size-7 sm:size-8 place-items-center rounded-full font-mono text-xs font-bold transition focus-visible:outline-2 focus-visible:outline-primary ${
-              item.quantity >= item.available || isMutating
-                ? 'bg-surface-raised border border-border text-muted-foreground/40 cursor-not-allowed'
-                : 'bg-primary text-primary-foreground hover:bg-primary-light active:scale-95'
-            }`}
+            className="grid size-7 sm:size-8 place-items-center rounded-full font-mono text-xs font-bold transition focus-visible:outline-2 focus-visible:outline-primary bg-primary text-primary-foreground hover:bg-primary-light disabled:opacity-30 disabled:cursor-not-allowed"
           >
             +
           </button>
         </div>
-      </div>
 
-      {/* Coluna 4: Total do Item */}
-      <div className="flex items-center justify-between md:justify-end border-t border-border/30 pt-2 md:border-t-0 md:pt-0">
-        <span className="font-mono text-xs text-muted-foreground md:hidden">Total do item:</span>
-        <span
-          data-testid={`item-subtotal-${item.nftId}`}
-          className="font-mono text-sm font-bold text-primary tabular-nums text-right"
-        >
-          {formatEth(item.subtotalEth)} ETH
-        </span>
-      </div>
-
-      {/* Coluna 5: Ação de Remoção (Ícone Lixeira) */}
-      <div className="flex items-center justify-end">
         <button
           type="button"
           onClick={onRemove}
           disabled={isMutating}
           aria-label={`Remover ${item.name} do carrinho`}
-          className="grid size-8 place-items-center rounded-md text-muted-foreground transition hover:text-destructive focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40"
+          className="grid size-7 sm:size-8 place-items-center rounded-md text-muted-foreground hover:text-destructive transition ml-1"
         >
           <TrashIcon className="size-4" />
         </button>
+      </div>
+
+      <div className="hidden md:block font-mono text-sm font-bold text-primary tabular-nums text-right">
+        {formatEth(item.subtotalEth)} ETH
       </div>
     </li>
   )

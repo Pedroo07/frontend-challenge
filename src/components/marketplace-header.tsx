@@ -1,5 +1,6 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
+import { AuthModal } from '@/components/auth-modal'
 import { useAuth } from '@/lib/auth-context'
 import { useCart } from '@/lib/cart-context'
 import { catalogSearchDefaults } from '@/lib/catalog-options'
@@ -10,6 +11,8 @@ type MarketplaceHeaderProps = {
   onFiltersClick?: () => void
   filtersOpen?: boolean
   activeNav?: 'inicio' | 'mercado' | 'criadores' | 'aprenda'
+  showMobileTabBar?: boolean
+  showMobileHeader?: boolean
 }
 
 export function MarketplaceHeader({
@@ -18,47 +21,83 @@ export function MarketplaceHeader({
   onFiltersClick,
   filtersOpen = false,
   activeNav = 'inicio',
+  showMobileTabBar = true,
+  showMobileHeader = true,
 }: MarketplaceHeaderProps) {
   const [desktopSearchOpen, setDesktopSearchOpen] = useState(false)
+  const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [clickedNav, setClickedNav] = useState<'inicio' | 'mercado' | 'criadores' | 'aprenda' | null>(null)
+  const [prevActiveNav, setPrevActiveNav] = useState(activeNav)
+
+  if (prevActiveNav !== activeNav) {
+    setPrevActiveNav(activeNav)
+    setClickedNav(null)
+  }
+
+  const selectedNav = clickedNav ?? activeNav
   const desktopSearchRef = useRef<HTMLInputElement>(null)
   const { user, isAuthenticated, logout } = useAuth()
   const { totalQuantity } = useCart()
+  const redirectUrl = typeof window !== 'undefined' && window.location.pathname !== '/login' && window.location.pathname !== '/cadastro'
+    ? window.location.pathname + window.location.search
+    : '/'
 
   useEffect(() => {
     if (desktopSearchOpen) desktopSearchRef.current?.focus()
   }, [desktopSearchOpen])
 
-  const redirectUrl = typeof window !== 'undefined' && window.location.pathname !== '/login' && window.location.pathname !== '/cadastro'
-    ? window.location.pathname + window.location.search
-    : '/'
+  const navigate = useNavigate()
 
   const handleLogout = async () => {
+    if (typeof window !== 'undefined' && (window.location.pathname.startsWith('/perfil') || window.location.pathname.startsWith('/checkout') || window.location.pathname.startsWith('/pedidos'))) {
+      void navigate({ to: '/', search: catalogSearchDefaults })
+    }
     await logout()
   }
 
-  const isInicioActive = activeNav === 'inicio'
-  const isMercadoActive = activeNav === 'mercado'
-  const isCriadoresActive = activeNav === 'criadores'
-  const isAprendaActive = activeNav === 'aprenda'
+  const handleNavClick = (nav: 'inicio' | 'mercado' | 'criadores' | 'aprenda', targetId?: string) => {
+    setClickedNav(nav)
+    if (targetId) {
+      const el = document.getElementById(targetId)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      } else if (targetId === 'top') {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      } else {
+        void navigate({ to: '/', search: catalogSearchDefaults, hash: targetId }).then(() => {
+          setTimeout(() => {
+            document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }, 150)
+        })
+      }
+    }
+  }
+
+  const isInicioActive = selectedNav === 'inicio'
+  const isMercadoActive = selectedNav === 'mercado'
+  const isCriadoresActive = selectedNav === 'criadores'
+  const isAprendaActive = selectedNav === 'aprenda'
 
   return (
     <>
       <header id="top" className="hidden border-b border-border-soft md:block">
-        <div className="relative mx-auto flex h-[76px] max-w-300 items-center justify-between gap-6 px-6 lg:px-0">
+        <div className="relative mx-auto flex h-19 max-w-300 items-center justify-between gap-6 px-6 lg:px-0">
           <Link
             to="/"
             search={catalogSearchDefaults}
             aria-label="Kurio, início"
+            onClick={() => handleNavClick('inicio', 'top')}
             className="shrink-0 font-mono text-sm font-bold tracking-[0.12em] text-foreground"
           >
             KURIO
           </Link>
 
-          <nav aria-label="Navegação principal" className="flex h-full items-center gap-8 font-mono text-sm font-medium text-muted-foreground">
+          <nav aria-label="Navegação principal" className="flex h-full items-center gap-8 font-mono text-sm font-medium text-[#F5F1EB]">
             <Link
               to="/"
               search={catalogSearchDefaults}
               aria-current={isInicioActive ? 'page' : undefined}
+              onClick={() => handleNavClick('inicio', 'top')}
               className={`relative flex h-full items-center transition-colors hover:text-foreground ${
                 isInicioActive ? 'text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary' : ''
               }`}
@@ -70,6 +109,7 @@ export function MarketplaceHeader({
               hash="catalog"
               search={catalogSearchDefaults}
               aria-current={isMercadoActive ? 'page' : undefined}
+              onClick={() => handleNavClick('mercado', 'catalog')}
               className={`relative flex h-full items-center transition-colors hover:text-foreground ${
                 isMercadoActive ? 'text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary' : ''
               }`}
@@ -81,6 +121,7 @@ export function MarketplaceHeader({
               hash="creators"
               search={catalogSearchDefaults}
               aria-current={isCriadoresActive ? 'page' : undefined}
+              onClick={() => handleNavClick('criadores', 'creators')}
               className={`relative flex h-full items-center transition-colors hover:text-foreground ${
                 isCriadoresActive ? 'text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary' : ''
               }`}
@@ -92,6 +133,7 @@ export function MarketplaceHeader({
               hash="learn"
               search={catalogSearchDefaults}
               aria-current={isAprendaActive ? 'page' : undefined}
+              onClick={() => handleNavClick('aprenda', 'learn')}
               className={`relative flex h-full items-center transition-colors hover:text-foreground ${
                 isAprendaActive ? 'text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary' : ''
               }`}
@@ -128,9 +170,15 @@ export function MarketplaceHeader({
 
             {isAuthenticated && user ? (
               <div className="flex items-center gap-3">
-                <span className="font-mono text-xs font-semibold text-foreground sm:text-sm" data-testid="user-name">
-                  {user.name}
-                </span>
+                <Link
+                  to="/perfil"
+                  className="inline-flex items-center gap-2 rounded px-2 py-1 transition-colors hover:bg-surface-raised"
+                  aria-label="Ir para o perfil do colecionador"
+                >
+                  <span className="font-mono text-xs font-semibold text-foreground sm:text-sm hover:text-primary transition-colors" data-testid="user-name">
+                    {user.name}
+                  </span>
+                </Link>
                 <button
                   type="button"
                   onClick={() => void handleLogout()}
@@ -144,6 +192,10 @@ export function MarketplaceHeader({
               <Link
                 to="/login"
                 search={{ redirect: redirectUrl }}
+                onClick={(e) => {
+                  e.preventDefault()
+                  setAuthModalOpen(true)
+                }}
                 className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-light focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 <UserIcon className="size-4" /> Entrar
@@ -169,100 +221,171 @@ export function MarketplaceHeader({
         </div>
       </header>
 
-      <header className="px-6 pb-0 pt-10 md:hidden">
-        {isAuthenticated && user && (
-          <div className="mx-auto mb-3 flex max-w-120 items-center justify-between border-b border-border/40 pb-2 font-mono text-xs text-muted-foreground">
-            <span>Olá, <strong className="text-foreground">{user.name}</strong></span>
-            <button
+      {showMobileHeader && (
+        <header className="px-6 pb-0 pt-10 md:hidden">
+          {isAuthenticated && user && (
+            <div className="mx-auto mb-3 flex max-w-120 items-center justify-between border-b border-border/40 pb-2 font-mono text-xs text-muted-foreground">
+              <Link to="/perfil" className="hover:text-primary transition-colors">
+                <span>Olá, <strong className="text-foreground">{user.name}</strong></span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => void handleLogout()}
+                aria-label="Sair da conta"
+                className="rounded border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-destructive hover:text-destructive"
+              >
+                Sair
+              </button>
+            </div>
+          )}
+
+          <div className="mx-auto flex max-w-120 items-center gap-2">
+            <form role="search" onSubmit={(event) => { event.preventDefault(); document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth' }) }} className="relative min-w-0 flex-1">
+              <label className="sr-only" htmlFor="mobile-catalog-search">Explorar coleções</label>
+              <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-secondary" />
+              <input
+                id="mobile-catalog-search"
+                type="search"
+                autoComplete="off"
+                value={query}
+                onChange={(event) => onQueryChange?.(event.currentTarget.value)}
+                placeholder="Explorar coleções"
+                className="h-12 w-full min-w-0 rounded-lg border border-transparent bg-card px-11 font-mono text-sm text-foreground outline-none placeholder:font-semibold placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+            </form>
+            {onFiltersClick && <button
               type="button"
-              onClick={() => void handleLogout()}
-              aria-label="Sair da conta"
-              className="rounded border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-destructive hover:text-destructive"
+              aria-label={filtersOpen ? 'Fechar filtros' : 'Abrir filtros'}
+              aria-controls="mobile-catalog-filters"
+              aria-expanded={filtersOpen}
+              onClick={onFiltersClick}
+              className="grid size-12 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary-light focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
-              Sair
-            </button>
+              <FilterIcon className="size-5" />
+            </button>}
           </div>
-        )}
+        </header>
+      )}
 
-        <div className="mx-auto flex max-w-120 items-center gap-2">
-          <form role="search" onSubmit={(event) => { event.preventDefault(); document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth' }) }} className="relative min-w-0 flex-1">
-            <label className="sr-only" htmlFor="mobile-catalog-search">Explorar coleções</label>
-            <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-secondary" />
-            <input
-              id="mobile-catalog-search"
-              type="search"
-              autoComplete="off"
-              value={query}
-              onChange={(event) => onQueryChange?.(event.currentTarget.value)}
-              placeholder="Explorar coleções"
-              className="h-12 w-full min-w-0 rounded-lg border border-transparent bg-card px-11 font-mono text-sm text-foreground outline-none placeholder:font-semibold placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/20"
-            />
-          </form>
-          {onFiltersClick && <button
-            type="button"
-            aria-label={filtersOpen ? 'Fechar filtros' : 'Abrir filtros'}
-            aria-controls="mobile-catalog-filters"
-            aria-expanded={filtersOpen}
-            onClick={onFiltersClick}
-            className="grid size-12 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary-light focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-          >
-            <FilterIcon className="size-5" />
-          </button>}
-        </div>
-      </header>
+      <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
 
-      <MobileTabBar />
+      {showMobileTabBar && <MobileTabBar />}
     </>
   )
 }
 
 function MobileTabBar() {
-  const { user, isAuthenticated, logout } = useAuth()
+  const { user, isAuthenticated } = useAuth()
   const { totalQuantity } = useCart()
   const redirectUrl = typeof window !== 'undefined' && window.location.pathname !== '/login' && window.location.pathname !== '/cadastro'
     ? window.location.pathname + window.location.search
     : '/'
 
   return (
-    <nav aria-label="Navegação inferior" className="fixed inset-x-0 bottom-0 z-50 grid h-[76px] grid-cols-5 items-center rounded-t-mobile-nav bg-card px-5 pb-[env(safe-area-inset-bottom)] text-secondary shadow-[0_-8px_32px_rgba(20,13,10,0.36)] md:hidden">
-      <a href="#top" aria-label="Início" className="grid h-full place-items-center text-primary"><HomeIcon className="size-5" /></a>
-      {isAuthenticated ? (
-        <a href="#catalog" aria-label="Favoritos" className="grid h-full place-items-center"><HeartIcon className="size-5" /></a>
-      ) : (
-        <Link to="/login" search={{ redirect: redirectUrl }} aria-label="Favoritos" className="grid h-full place-items-center"><HeartIcon className="size-5" /></Link>
-      )}
-      <a href="#catalog" aria-label="Explorar NFTs" className="-mt-6 grid size-14 place-self-center place-items-center rounded-full border-4 border-background bg-primary text-primary-foreground shadow-lg"><ScanIcon className="size-6" /></a>
-      <Link
-        to="/carrinho"
-        aria-label={`Carrinho, ${totalQuantity} itens`}
-        className="relative grid h-full place-items-center hover:text-primary"
+    <nav
+      aria-label="Navegação inferior"
+      className="fixed inset-x-0 bottom-0 z-50 h-19 pb-[env(safe-area-inset-bottom)] md:hidden select-none"
+    >
+      {/* Background layer with concave center scoop notch and shadow */}
+      <div
+        className="absolute inset-0 flex h-full w-full pointer-events-none"
+        style={{ filter: 'drop-shadow(0 -8px 24px rgba(20, 13, 10, 0.45))' }}
       >
-        <CartIcon className="size-5" />
-        {totalQuantity > 0 && (
-          <span className="absolute right-3.5 top-3.5 grid size-3.5 place-items-center rounded-full bg-primary text-[9px] font-bold leading-none text-primary-foreground">
-            {totalQuantity > 99 ? '99+' : totalQuantity}
-          </span>
-        )}
-      </Link>
-      {isAuthenticated ? (
-        <button
-          type="button"
-          onClick={() => void logout()}
-          aria-label={`Sair da conta de ${user?.name ?? 'usuário'}`}
-          className="grid h-full place-items-center text-muted-foreground hover:text-destructive"
+        <div className="flex-1 h-full bg-card rounded-tl-[36px] -mr-px" />
+        <svg
+          viewBox="0 0 120 76"
+          className="w-30 h-19 shrink-0 fill-card"
+          preserveAspectRatio="none"
+          aria-hidden="true"
         >
-          <UserIcon className="size-5 text-primary" />
-        </button>
-      ) : (
+          <path d="M 0,0 L 12,0 C 20,0 26,6 29,16 C 33,36 44,48 60,48 C 76,48 87,36 91,16 C 94,6 100,0 108,0 L 120,0 L 120,76 L 0,76 Z" />
+        </svg>
+        <div className="flex-1 h-full bg-card rounded-tr-[36px] -ml-px" />
+      </div>
+
+      {/* Atmospheric radial glow behind the floating button and scoop */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 -top-10 -translate-x-1/2 h-28 w-32 rounded-full bg-[radial-gradient(circle_at_50%_60%,rgba(255,255,255,0.6)_0%,rgba(240,163,99,0.3)_35%,transparent_70%)] blur-lg -z-10"
+      />
+
+      {/* Interactive 5-column navigation */}
+      <div className="relative grid h-full grid-cols-5 items-center px-4 text-secondary">
         <Link
-          to="/login"
-          search={{ redirect: redirectUrl }}
-          aria-label="Entrar na conta"
-          className="grid h-full place-items-center text-muted-foreground hover:text-primary"
+          to="/"
+          hash="top"
+          search={catalogSearchDefaults}
+          aria-label="Início"
+          className="grid h-full place-items-center text-primary"
         >
-          <UserIcon className="size-5" />
+          <HomeIcon className="size-5" />
         </Link>
-      )}
+
+        {isAuthenticated ? (
+          <Link
+            to="/perfil"
+            search={{ tab: 'favoritos' }}
+            aria-label="Favoritos"
+            className="grid h-full place-items-center text-secondary hover:text-primary"
+          >
+            <HeartIcon className="size-5" />
+          </Link>
+        ) : (
+          <Link
+            to="/login"
+            search={{ redirect: '/perfil?tab=favoritos' }}
+            aria-label="Favoritos"
+            className="grid h-full place-items-center text-secondary hover:text-primary"
+          >
+            <HeartIcon className="size-5" />
+          </Link>
+        )}
+
+        {/* Center Floating Catalog Button nestled in the notch */}
+        <div className="relative grid h-full place-items-center">
+          <Link
+            to="/"
+            hash="catalog"
+            search={catalogSearchDefaults}
+            aria-label="Explorar NFTs"
+            className="absolute -top-4.5 grid size-14 place-items-center rounded-full bg-[radial-gradient(circle_at_35%_35%,#F0A363_0%,#D88344_55%,#BD6C2E_100%)] text-white shadow-[0_12px_24px_rgba(216,131,68,0.45)] ring-1 ring-white/20 transition-transform active:scale-95"
+          >
+            <ScanIcon className="size-6" />
+          </Link>
+        </div>
+
+        <Link
+          to="/carrinho"
+          aria-label={`Carrinho, ${totalQuantity} itens`}
+          className="relative grid h-full place-items-center text-secondary hover:text-primary"
+        >
+          <CartIcon className="size-5" />
+          {totalQuantity > 0 && (
+            <span className="absolute right-3.5 top-3.5 grid size-3.5 place-items-center rounded-full bg-primary text-[9px] font-bold leading-none text-primary-foreground">
+              {totalQuantity > 99 ? '99+' : totalQuantity}
+            </span>
+          )}
+        </Link>
+
+        {isAuthenticated ? (
+          <Link
+            to="/perfil"
+            aria-label={`Perfil de ${user?.name ?? 'usuário'}`}
+            className="grid h-full place-items-center text-secondary hover:text-primary"
+          >
+            <UserIcon className="size-5" />
+          </Link>
+        ) : (
+          <Link
+            to="/login"
+            search={{ redirect: redirectUrl }}
+            aria-label="Entrar na conta"
+            className="grid h-full place-items-center text-secondary hover:text-primary"
+          >
+            <UserIcon className="size-5" />
+          </Link>
+        )}
+      </div>
     </nav>
   )
 }

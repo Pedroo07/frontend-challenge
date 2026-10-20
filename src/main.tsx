@@ -14,7 +14,7 @@ const root = ReactDOM.createRoot(rootElement)
 async function bootstrap() {
   let mocks: MockStatus = 'disabled'
 
-  if (import.meta.env.DEV || import.meta.env.VITE_ENABLE_MOCKS === 'true') {
+  if (import.meta.env.VITE_ENABLE_MOCKS !== 'false') {
     const { startBrowserMocks } = await import('@/mocks/browser')
     mocks = await startBrowserMocks()
   }

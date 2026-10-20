@@ -38,7 +38,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    // A página /diagnostic testa sua própria conexão isolada de Socket.IO
+
     if (window.location.pathname.startsWith('/diagnostic')) return
 
     const socket: Socket = io(window.location.origin, {
@@ -50,7 +50,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       timeout: 5000,
     })
     socketRef.current = socket
-    setSocketInstance(socket)
+    queueMicrotask(() => {
+      setSocketInstance(socket)
+    })
 
     let hasConnectedOnce = false
 
@@ -58,7 +60,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       setIsConnected(true)
       setSocketStatus('Conectado')
       if (hasConnectedOnce) {
-        // Na reconexão, recupera o estado atualizado pela API REST
+
         void queryClient.invalidateQueries({ queryKey: ['nfts'] })
         void queryClient.invalidateQueries({ queryKey: ['cart'] })
         void queryClient.invalidateQueries({ queryKey: ['cart', 'quote'] })
@@ -81,7 +83,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     const handleNftUpdate = (event: NftUpdatedEvent) => {
       if (!event || !event.nftId) return
 
-      // Validação de versão monotônica: ignora versões menores ou iguais à última vista
+
       const lastVersion = lastVersionsRef.current.get(event.nftId) ?? 0
       if (event.version <= lastVersion) {
         return
@@ -91,7 +93,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       setLastUpdate(event)
       setUpdatedNfts((prev) => ({ ...prev, [event.nftId]: event }))
 
-      // Atualiza ou invalida os dados de consulta afetados
+
       void queryClient.invalidateQueries({ queryKey: ['nfts', 'detail', event.nftId] })
       void queryClient.invalidateQueries({ queryKey: ['nfts'] })
       void queryClient.invalidateQueries({ queryKey: ['cart'] })
@@ -101,7 +103,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     const handleOrderUpdate = (event: OrderUpdatedEvent) => {
       if (!event || !event.orderId) return
 
-      // Validação de versão monotônica para pedidos: ignora versões menores ou iguais à última vista
+
       const lastVersion = orderVersionsRef.current.get(event.orderId) ?? 0
       if (event.version <= lastVersion) {
         return
@@ -110,7 +112,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
       setLastOrderUpdate(event)
 
-      // Atualiza e invalida as consultas do pedido e do carrinho
+
       void queryClient.invalidateQueries({ queryKey: ['orders', event.orderId] })
       void queryClient.invalidateQueries({ queryKey: ['orders'] })
       void queryClient.invalidateQueries({ queryKey: ['cart'] })
@@ -179,11 +181,7 @@ export function useSocket(): SocketContextValue {
   return context
 }
 
-/**
- * Hook para escutar atualizações em tempo real de um NFT específico.
- * Respeita descarte de duplicatas por eventId e controle de versões monotônicas.
- * Garante cleanup dos listeners ao desmontar o componente.
- */
+
 // eslint-disable-next-line react-refresh/only-export-components
 export function useNftSocket(
   nftId: string,
@@ -200,7 +198,7 @@ export function useNftSocket(
     const handleUpdate = (event: NftUpdatedEvent & { eventId?: string }) => {
       if (!event || event.nftId !== nftId) return
 
-      // Ignora duplicatas por eventId caso fornecido
+
       if (event.eventId) {
         if (processedEventIdsRef.current.has(event.eventId)) {
           return
@@ -208,7 +206,7 @@ export function useNftSocket(
         processedEventIdsRef.current.add(event.eventId)
       }
 
-      // Ignora versões menores ou iguais (versões obsoletas ou duplicadas)
+
       if (typeof event.version === 'number') {
         if (event.version <= lastVersionRef.current) {
           return
@@ -216,7 +214,7 @@ export function useNftSocket(
         lastVersionRef.current = event.version
       }
 
-      // Revalida dados de detalhe do NFT
+
       void queryClient.invalidateQueries({ queryKey: ['nfts', 'detail', nftId] })
       onUpdate?.(event)
     }

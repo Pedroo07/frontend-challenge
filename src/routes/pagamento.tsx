@@ -1,6 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { CheckoutPage } from './checkout'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/pagamento')({
-  component: CheckoutPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/checkout' })
+  },
 })

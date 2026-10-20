@@ -6,7 +6,7 @@ import { formatEth } from '@/lib/catalog-options'
 import { useFavorites } from '@/lib/favorites'
 import type { NftListItem } from '@/mocks/contracts'
 
-export function NftCard({ nft }: { nft: NftListItem }) {
+export function NftCard({ nft, priority = false }: { nft: NftListItem; priority?: boolean }) {
   const { isFavorite, toggleFavorite, isPending, pendingNftId } = useFavorites()
   const { addItem, isMutating } = useCart()
   const [justAdded, setJustAdded] = useState(false)
@@ -23,8 +23,8 @@ export function NftCard({ nft }: { nft: NftListItem }) {
       await addItem({ nftId: nft.id, editionId: targetEdition.id, quantity: 1 })
       setJustAdded(true)
       setTimeout(() => setJustAdded(false), 2000)
-    } catch {
-      // Handled by context
+    } catch  {
+      void 0
     }
   }
 
@@ -42,7 +42,8 @@ export function NftCard({ nft }: { nft: NftListItem }) {
             alt={`${nft.name}, obra da coleção ${nft.collection.name}`}
             width={640}
             height={640}
-            loading="lazy"
+            loading={priority ? 'eager' : 'lazy'}
+            fetchPriority={priority ? 'high' : 'auto'}
             decoding="async"
             sizes="(max-width: 767px) calc((100vw - 56px) / 2), (max-width: 1279px) 34vw, 260px"
             className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.035]"
@@ -81,7 +82,7 @@ export function NftCard({ nft }: { nft: NftListItem }) {
                   ? `${nft.name} adicionado ao carrinho`
                   : `Adicionar ${nft.name} ao carrinho`
             }
-            className={`grid size-8 place-items-center rounded-full text-primary-foreground transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-40 ${justAdded ? 'bg-emerald-600' : 'bg-primary hover:bg-primary-light'}`}
+            className={`grid size-8 place-items-center rounded-full text-primary-foreground transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-40 ${justAdded ? 'bg-success text-white' : 'bg-primary hover:bg-primary-light'}`}
           >
             {justAdded ? (
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="size-4"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>

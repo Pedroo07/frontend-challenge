@@ -1,7 +1,7 @@
 import { setupWorker } from 'msw/browser'
 import { handlers } from './handlers'
 
-const mocksEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_MOCKS === 'true'
+const mocksEnabled = import.meta.env.VITE_ENABLE_MOCKS !== 'false'
 const worker = setupWorker(...handlers)
 
 export type MockStatus = 'enabled' | 'disabled' | 'starting' | 'ready' | 'error'
