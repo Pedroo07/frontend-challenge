@@ -1,11 +1,14 @@
 import { http, HttpResponse } from 'msw'
 import type {
+  AddWalletPayload,
+  ChangePasswordPayload,
   CreateOrderPayload,
   HealthResponse,
   NftListParams,
   NftUpdatedEvent,
   OrderStatus,
   OrderUpdatedEvent,
+  UpdateProfilePayload,
 } from './contracts'
 import { nftFixtures, summarizeNft, updateNftFixture } from './fixtures/nfts'
 import { mockStore } from './mock-store'
@@ -37,7 +40,7 @@ function parseListParams(request: Request): NftListParams {
     maxPrice: Number.isFinite(rawMaxPrice) && rawMaxPrice <= 12.3 ? rawMaxPrice : 12.3,
     network: network === 'ethereum' || network === 'polygon' || network === 'solana' ? network : undefined,
     page: readPositiveInteger(url.searchParams.get('page'), 1, 100),
-    pageSize: readPositiveInteger(url.searchParams.get('pageSize'), 6, 24),
+    pageSize: readPositiveInteger(url.searchParams.get('pageSize'), 6, 100),
   }
 }
 
@@ -116,7 +119,7 @@ export const restHandlers = [
     return HttpResponse.json(nft)
   }),
 
-  // Auth endpoints
+
   http.post('/api/auth/register', async ({ request }) => {
     try {
       const body = (await request.json()) as { name?: string; email?: string; password?: string }
@@ -195,10 +198,83 @@ export const restHandlers = [
       return HttpResponse.json({ message: 'Sessão expirada.' }, { status: 401 })
     }
 
-    return HttpResponse.json({ user: session.user })
+    const freshUser = mockStore.findUserById(session.user.id) ?? session.user
+    return HttpResponse.json({ user: freshUser })
   }),
 
-  // Favorites endpoints
+  http.patch('/api/account', async ({ request }) => {
+    const token = extractBearerToken(request)
+    if (!token) {
+      return HttpResponse.json({ message: 'Sessão não encontrada.' }, { status: 401 })
+    }
+
+    const session = mockStore.getSession(token)
+    if (!session || session.expired) {
+      return HttpResponse.json({ message: 'Sessão expirada.' }, { status: 401 })
+    }
+
+    try {
+      const body = (await request.json()) as UpdateProfilePayload
+      const updatedUser = mockStore.updateUserProfile(session.user.id, body)
+      return HttpResponse.json({ user: updatedUser })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Falha ao atualizar perfil.'
+      if (message.includes('FALHA_CONTA')) {
+        return HttpResponse.json({ message: 'Erro transitório ao salvar perfil.' }, { status: 500 })
+      }
+      return HttpResponse.json({ message }, { status: 400 })
+    }
+  }),
+
+  http.put('/api/account', async ({ request }) => {
+    const token = extractBearerToken(request)
+    if (!token) {
+      return HttpResponse.json({ message: 'Sessão não encontrada.' }, { status: 401 })
+    }
+
+    const session = mockStore.getSession(token)
+    if (!session || session.expired) {
+      return HttpResponse.json({ message: 'Sessão expirada.' }, { status: 401 })
+    }
+
+    try {
+      const body = (await request.json()) as UpdateProfilePayload
+      const updatedUser = mockStore.updateUserProfile(session.user.id, body)
+      return HttpResponse.json({ user: updatedUser })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Falha ao atualizar perfil.'
+      if (message.includes('FALHA_CONTA')) {
+        return HttpResponse.json({ message: 'Erro transitório ao salvar perfil.' }, { status: 500 })
+      }
+      return HttpResponse.json({ message }, { status: 400 })
+    }
+  }),
+
+  http.post('/api/account/password', async ({ request }) => {
+    const token = extractBearerToken(request)
+    if (!token) {
+      return HttpResponse.json({ message: 'Sessão não encontrada.' }, { status: 401 })
+    }
+
+    const session = mockStore.getSession(token)
+    if (!session || session.expired) {
+      return HttpResponse.json({ message: 'Sessão expirada.' }, { status: 401 })
+    }
+
+    try {
+      const body = (await request.json()) as ChangePasswordPayload
+      mockStore.changeUserPassword(session.user.id, body.currentPassword ?? '', body.newPassword ?? '')
+      return HttpResponse.json({ success: true, message: 'Senha alterada com sucesso.' })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Falha ao alterar senha.'
+      if (message.includes('FALHA_CONTA')) {
+        return HttpResponse.json({ message: 'Erro transitório ao alterar senha.' }, { status: 500 })
+      }
+      return HttpResponse.json({ message }, { status: 400 })
+    }
+  }),
+
+
   http.get('/api/favorites', ({ request }) => {
     const token = extractBearerToken(request)
     if (!token) {
@@ -268,7 +344,7 @@ export const restHandlers = [
     return HttpResponse.json({ success: true, nftId, items })
   }),
 
-  // Cart endpoints
+
   http.get('/api/cart', ({ request }) => {
     const ownerId = extractOwnerId(request)
     return HttpResponse.json(mockStore.getCart(ownerId))
@@ -365,7 +441,7 @@ export const restHandlers = [
     }
   }),
 
-  // Scenario control endpoints
+
   http.post('/api/_mock/scenarios/nft-list-error-once', () => {
     mockStore.setFailNextNftList(true)
     return HttpResponse.json({ enabled: true })
@@ -417,7 +493,7 @@ export const restHandlers = [
     }
   }),
 
-  // Orders endpoints
+
   http.post('/api/orders', async ({ request }) => {
     const token = extractBearerToken(request)
     if (!token) {
@@ -462,6 +538,27 @@ export const restHandlers = [
 
       return HttpResponse.json({ message }, { status: 400 })
     }
+  }),
+
+  http.get('/api/orders', ({ request }) => {
+    const token = extractBearerToken(request)
+    if (!token) {
+      return HttpResponse.json({ message: 'Autenticação necessária para listar pedidos.' }, { status: 401 })
+    }
+
+    const session = mockStore.getSession(token)
+    if (!session || session.expired) {
+      return HttpResponse.json({ message: 'Sessão expirada.' }, { status: 401 })
+    }
+
+    const url = new URL(request.url)
+    const statusParam = url.searchParams.get('status')
+    const validStatus = statusParam && ['pending', 'confirmed', 'declined'].includes(statusParam)
+      ? (statusParam as OrderStatus)
+      : undefined
+
+    const items = mockStore.getUserOrders(session.user.id, validStatus)
+    return HttpResponse.json({ items, total: items.length })
   }),
 
   http.get('/api/orders/:orderId', ({ request, params }) => {
@@ -519,7 +616,113 @@ export const restHandlers = [
     }
   }),
 
-  // Scenarios endpoints for order & payment testing
+
+  http.get('/api/wallets', ({ request }) => {
+    const token = extractBearerToken(request)
+    if (!token) {
+      return HttpResponse.json({ message: 'Autenticação necessária para listar carteiras.' }, { status: 401 })
+    }
+
+    const session = mockStore.getSession(token)
+    if (!session || session.expired) {
+      return HttpResponse.json({ message: 'Sessão expirada.' }, { status: 401 })
+    }
+
+    const items = mockStore.getUserWallets(session.user.id)
+    return HttpResponse.json({ items })
+  }),
+
+  http.post('/api/wallets', async ({ request }) => {
+    const token = extractBearerToken(request)
+    if (!token) {
+      return HttpResponse.json({ message: 'Autenticação necessária para adicionar carteira.' }, { status: 401 })
+    }
+
+    const session = mockStore.getSession(token)
+    if (!session || session.expired) {
+      return HttpResponse.json({ message: 'Sessão expirada.' }, { status: 401 })
+    }
+
+    try {
+      const body = (await request.json()) as AddWalletPayload
+      const wallet = mockStore.addWallet(session.user.id, body)
+      return HttpResponse.json(wallet, { status: 201 })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Falha ao adicionar carteira.'
+      if (message.includes('FALHA_CARTEIRA')) {
+        return HttpResponse.json({ message: 'Erro transitório ao adicionar carteira.' }, { status: 500 })
+      }
+      if (message.includes('WALLET_EXISTS')) {
+        return HttpResponse.json({ message: 'Esta carteira já está vinculada à sua conta.' }, { status: 409 })
+      }
+      return HttpResponse.json({ message }, { status: 400 })
+    }
+  }),
+
+  http.patch('/api/wallets/:walletId/primary', ({ request, params }) => {
+    const token = extractBearerToken(request)
+    if (!token) {
+      return HttpResponse.json({ message: 'Autenticação necessária para alterar carteira principal.' }, { status: 401 })
+    }
+
+    const session = mockStore.getSession(token)
+    if (!session || session.expired) {
+      return HttpResponse.json({ message: 'Sessão expirada.' }, { status: 401 })
+    }
+
+    try {
+      const wallet = mockStore.setPrimaryWallet(session.user.id, String(params.walletId))
+      return HttpResponse.json(wallet)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Falha ao alterar carteira principal.'
+      if (message.includes('FALHA_CARTEIRA')) {
+        return HttpResponse.json({ message: 'Erro transitório ao alterar carteira.' }, { status: 500 })
+      }
+      return HttpResponse.json({ message }, { status: 400 })
+    }
+  }),
+
+  http.delete('/api/wallets/:walletId', ({ request, params }) => {
+    const token = extractBearerToken(request)
+    if (!token) {
+      return HttpResponse.json({ message: 'Autenticação necessária para remover carteira.' }, { status: 401 })
+    }
+
+    const session = mockStore.getSession(token)
+    if (!session || session.expired) {
+      return HttpResponse.json({ message: 'Sessão expirada.' }, { status: 401 })
+    }
+
+    try {
+      mockStore.removeWallet(session.user.id, String(params.walletId))
+      return HttpResponse.json({ success: true })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Falha ao remover carteira.'
+      if (message.includes('FALHA_CARTEIRA')) {
+        return HttpResponse.json({ message: 'Erro transitório ao remover carteira.' }, { status: 500 })
+      }
+      if (message.includes('PRIMARY_CANNOT_BE_REMOVED')) {
+        return HttpResponse.json(
+          { message: 'A carteira principal não pode ser removida. Defina outra carteira como principal antes de remover esta.' },
+          { status: 400 },
+        )
+      }
+      return HttpResponse.json({ message }, { status: 400 })
+    }
+  }),
+
+
+  http.post('/api/_mock/scenarios/account-fail-once', () => {
+    mockStore.setFailNextAccount(true)
+    return HttpResponse.json({ enabled: true })
+  }),
+
+  http.post('/api/_mock/scenarios/wallets-fail-once', () => {
+    mockStore.setFailNextWallet(true)
+    return HttpResponse.json({ enabled: true })
+  }),
+
+
   http.post('/api/_mock/scenarios/order-payment-result', async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as { result?: OrderStatus | null }
     mockStore.setNextPaymentResult(body.result ?? null)
@@ -549,6 +752,12 @@ export const restHandlers = [
       const message = err instanceof Error ? err.message : 'Falha ao emitir evento de teste order.updated.'
       return HttpResponse.json({ message }, { status: 400 })
     }
+  }),
+
+  http.post('/api/_mock/scenarios/seed-orders', async ({ request }) => {
+    const body = (await request.json().catch(() => ({}))) as { userId?: string }
+    const orders = mockStore.seedDemoOrders(body.userId ?? 'user-ana')
+    return HttpResponse.json({ success: true, count: orders.length, orders })
   }),
 
   http.post('/api/_mock/scenarios/reset', () => {

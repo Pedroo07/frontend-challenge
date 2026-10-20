@@ -78,8 +78,8 @@ export function useFavorites() {
     const action = isFavorite(nft.id) ? 'remove' : 'add'
     try {
       await toggleMutation.mutateAsync({ nftId: nft.id, action })
-    } catch {
-      // Error handled by mutation onError
+    } catch  {
+      void 0
     }
   }
 

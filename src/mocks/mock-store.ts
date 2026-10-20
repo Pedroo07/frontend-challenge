@@ -1,4 +1,5 @@
 import type {
+  AddWalletPayload,
   CartCoupon,
   CartItem,
   CartQuote,
@@ -9,7 +10,9 @@ import type {
   Order,
   OrderItem,
   OrderStatus,
+  UpdateProfilePayload,
   User,
+  Wallet,
 } from './contracts'
 import { nftFixtures, resetNftFixtures, updateNftFixture } from './fixtures/nfts'
 import { addEth, calculateDiscountEth, multiplyEth, subtractEth } from '@/lib/eth-currency'
@@ -55,6 +58,7 @@ type MockStoreState = {
   favorites: Record<string, string[]>
   carts: Record<string, StoredCart>
   orders: Record<string, Order>
+  wallets: Record<string, Wallet[]>
   idempotencyRecords: Record<string, IdempotencyRecord>
   nftOverrides?: Record<string, NftOverride>
   scenarios: {
@@ -65,31 +69,80 @@ type MockStoreState = {
     failNextOrderCreate: boolean
     timeoutAfterOrderCreate: boolean
     nextPaymentResult: OrderStatus | null
+    failNextAccountRequest: boolean
+    failNextWalletRequest: boolean
   }
 }
 
 const STORAGE_KEY = 'nft_mock_store_v1'
+
+
+export function mockHashPassword(password: string): string {
+  if (!password) return ''
+  let hash = 0x811c9dc5
+  for (let i = 0; i < password.length; i++) {
+    hash ^= password.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return `argon2_sim_${(hash >>> 0).toString(16).padStart(8, '0')}`
+}
 
 const initialUsers: StoredUser[] = [
   {
     id: 'user-ana',
     name: 'Ana Silva',
     email: 'ana@exemplo.com',
-    passwordHash: 'Password123!',
+    passwordHash: mockHashPassword('Password123!'),
     avatarUrl: '/avatars/ana.png',
+    bio: 'Colecionadora de arte generativa e fotografia abstrata.',
   },
   {
     id: 'user-lucas',
     name: 'Lucas Costa',
     email: 'lucas@exemplo.com',
-    passwordHash: 'Password123!',
+    passwordHash: mockHashPassword('Password123!'),
     avatarUrl: '/avatars/lucas.png',
+    bio: 'Entusiasta Web3 e investidor em edições raras.',
   },
 ]
 
 const initialFavorites: Record<string, string[]> = {
   'user-ana': ['nft-aurora-017'],
   'user-lucas': ['nft-flora-006'],
+}
+
+const initialWallets: Record<string, Wallet[]> = {
+  'user-ana': [
+    {
+      id: 'w-ana-1',
+      userId: 'user-ana',
+      address: '0x71C8564E3b3026D327732168434757342898a49B',
+      label: 'MetaMask Principal',
+      provider: 'metamask',
+      isPrimary: true,
+      createdAt: '2026-01-15T10:00:00.000Z',
+    },
+    {
+      id: 'w-ana-2',
+      userId: 'user-ana',
+      address: '0xC01ba472B3c114d79124233fB22964177a4F2290',
+      label: 'Coinbase Vault',
+      provider: 'coinbase',
+      isPrimary: false,
+      createdAt: '2026-02-01T14:30:00.000Z',
+    },
+  ],
+  'user-lucas': [
+    {
+      id: 'w-lucas-1',
+      userId: 'user-lucas',
+      address: '0x8A2c89452817342918451834190823419845e190',
+      label: 'Rainbow Lucas',
+      provider: 'rainbow',
+      isPrimary: true,
+      createdAt: '2026-01-20T12:00:00.000Z',
+    },
+  ],
 }
 
 function computeOrderFingerprint(payload: CreateOrderPayload): string {
@@ -102,7 +155,7 @@ function computeOrderFingerprint(payload: CreateOrderPayload): string {
 
 function createInitialState(): MockStoreState {
   return {
-    users: [...initialUsers],
+    users: initialUsers.map((u) => ({ ...u })),
     sessions: [
       {
         token: 'tok-user-ana-preset',
@@ -110,9 +163,14 @@ function createInitialState(): MockStoreState {
         expiresAt: Date.now() + 24 * 60 * 60 * 1000,
       },
     ],
-    favorites: { ...initialFavorites },
+    favorites: Object.fromEntries(
+      Object.entries(initialFavorites).map(([k, v]) => [k, [...v]]),
+    ),
     carts: {},
     orders: {},
+    wallets: Object.fromEntries(
+      Object.entries(initialWallets).map(([k, v]) => [k, v.map((w) => ({ ...w }))]),
+    ),
     idempotencyRecords: {},
     nftOverrides: {},
     scenarios: {
@@ -123,6 +181,8 @@ function createInitialState(): MockStoreState {
       failNextOrderCreate: false,
       timeoutAfterOrderCreate: false,
       nextPaymentResult: null,
+      failNextAccountRequest: false,
+      failNextWalletRequest: false,
     },
   }
 }
@@ -161,9 +221,23 @@ class MockStore {
       if (!raw) return null
       const parsed = JSON.parse(raw) as MockStoreState
       if (!parsed.orders) parsed.orders = {}
+      if (!parsed.wallets) parsed.wallets = { ...initialWallets }
       if (!parsed.idempotencyRecords) parsed.idempotencyRecords = {}
       if (!parsed.scenarios) {
         parsed.scenarios = createInitialState().scenarios
+      }
+      if (parsed.scenarios.failNextAccountRequest === undefined) {
+        parsed.scenarios.failNextAccountRequest = false
+      }
+      if (parsed.scenarios.failNextWalletRequest === undefined) {
+        parsed.scenarios.failNextWalletRequest = false
+      }
+      if (parsed.users) {
+        for (const u of parsed.users) {
+          if (u.passwordHash && !u.passwordHash.startsWith('argon2_sim_')) {
+            u.passwordHash = mockHashPassword(u.passwordHash)
+          }
+        }
       }
       return parsed
     } catch {
@@ -175,8 +249,8 @@ class MockStore {
     if (typeof window === 'undefined') return
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state))
-    } catch {
-      // Storage unavailable or quota exceeded
+    } catch  {
+      void 0
     }
   }
 
@@ -197,6 +271,7 @@ class MockStore {
       name: user.name,
       email: user.email,
       avatarUrl: user.avatarUrl,
+      bio: user.bio,
     }
   }
 
@@ -206,7 +281,7 @@ class MockStore {
     return this.toPublicUser(user)
   }
 
-  public registerUser(name: string, email: string, passwordHash: string): { user: User; token: string } {
+  public registerUser(name: string, email: string, passwordInput: string): { user: User; token: string } {
     const normalized = email.trim().toLowerCase()
     if (this.findUserByEmail(normalized)) {
       throw new Error('E-mail já cadastrado.')
@@ -216,7 +291,7 @@ class MockStore {
       id: `user-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
       name: name.trim(),
       email: normalized,
-      passwordHash,
+      passwordHash: mockHashPassword(passwordInput),
     }
 
     this.state.users.push(newUser)
@@ -230,8 +305,15 @@ class MockStore {
 
   public validateCredentials(email: string, password: string): { user: User; token: string } | null {
     const user = this.findUserByEmail(email)
-    if (!user || user.passwordHash !== password) {
+    const expectedHash = mockHashPassword(password)
+    if (!user) return null
+
+    if (user.passwordHash !== expectedHash && user.passwordHash !== password) {
       return null
+    }
+
+    if (user.passwordHash === password) {
+      user.passwordHash = expectedHash
     }
 
     const session = this.createSession(user.id)
@@ -300,7 +382,7 @@ class MockStore {
     return this.state.favorites[userId] ?? []
   }
 
-  // --- Cart and Quote Management ---
+
 
   private getRawCart(ownerId: string): StoredCart {
     if (!this.state.carts) {
@@ -629,7 +711,7 @@ class MockStore {
     }
   }
 
-  // --- Scenario Controls ---
+
 
   public setForceSessionExpired(force: boolean): void {
     this.state.scenarios.forceSessionExpired = force
@@ -678,7 +760,7 @@ class MockStore {
     return false
   }
 
-  // --- Order & Payment Management with Idempotency ---
+
 
   public createOrder(userId: string, payload: CreateOrderPayload, idempotencyKey: string): Order {
     if (this.state.scenarios.failNextOrderCreate) {
@@ -708,7 +790,7 @@ class MockStore {
       }
     }
 
-    // Revalidação estrita contra os fixtures atuais (catálogo oficial)
+
     for (const item of payload.items) {
       const nft = nftFixtures.find((n) => n.id === item.nftId)
       if (!nft) {
@@ -777,7 +859,7 @@ class MockStore {
     }
     this.saveToStorage()
 
-    // Cenário determinístico de timeout após criação no servidor
+
     if (this.state.scenarios.timeoutAfterOrderCreate) {
       this.state.scenarios.timeoutAfterOrderCreate = false
       this.saveToStorage()
@@ -788,13 +870,28 @@ class MockStore {
   }
 
   public getOrder(orderId: string): Order | null {
-    if (!this.state.orders) return null
-    return this.state.orders[orderId] ?? null
+    if (!this.state.orders) this.state.orders = {}
+    if (this.state.orders[orderId]) {
+      return this.state.orders[orderId]!
+    }
+    const reloaded = this.loadFromStorage()
+    if (reloaded?.orders?.[orderId]) {
+      this.state.orders[orderId] = reloaded.orders[orderId]!
+      return reloaded.orders[orderId]!
+    }
+    return null
   }
 
   public simulatePayment(orderId: string, action?: 'confirm' | 'decline' | 'pending'): Order {
     if (!this.state.orders) this.state.orders = {}
-    const order = this.state.orders[orderId]
+    let order = this.state.orders[orderId]
+    if (!order) {
+      const reloaded = this.loadFromStorage()
+      if (reloaded?.orders?.[orderId]) {
+        this.state.orders[orderId] = reloaded.orders[orderId]!
+        order = reloaded.orders[orderId]!
+      }
+    }
     if (!order) {
       throw new Error('Pedido não encontrado.')
     }
@@ -809,7 +906,7 @@ class MockStore {
         '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
       order.version += 1
 
-      // 1. Reduz estoque das edições compradas nos fixtures
+
       for (const item of order.items) {
         const nft = nftFixtures.find((n) => n.id === item.nftId)
         if (nft) {
@@ -825,7 +922,7 @@ class MockStore {
         }
       }
 
-      // 2. Remove estritamente os itens e quantidades comprados do carrinho do comprador
+
       const rawCart = this.state.carts?.[order.userId]
       if (rawCart) {
         for (const item of order.items) {
@@ -858,7 +955,7 @@ class MockStore {
       return order
     }
 
-    // Pending
+
     order.status = 'pending'
     this.saveToStorage()
     return order
@@ -901,6 +998,194 @@ class MockStore {
     return order
   }
 
+
+  public updateUserProfile(userId: string, data: UpdateProfilePayload): User {
+    if (this.state.scenarios.failNextAccountRequest) {
+      this.state.scenarios.failNextAccountRequest = false
+      this.saveToStorage()
+      throw new Error('FALHA_CONTA: Erro simulado ao atualizar perfil.')
+    }
+
+    const user = this.state.users.find((u) => u.id === userId)
+    if (!user) {
+      throw new Error('Usuário não encontrado.')
+    }
+
+    if (data.name !== undefined) {
+      const trimmed = data.name.trim()
+      if (trimmed.length < 2) {
+        throw new Error('O nome deve conter pelo menos 2 caracteres.')
+      }
+      user.name = trimmed
+    }
+
+    if (data.bio !== undefined) {
+      user.bio = data.bio.trim()
+    }
+
+    if (data.avatarUrl !== undefined) {
+      user.avatarUrl = data.avatarUrl.trim()
+    }
+
+    this.saveToStorage()
+    return this.toPublicUser(user)
+  }
+
+  public changeUserPassword(userId: string, currentPass: string, newPass: string): void {
+    if (this.state.scenarios.failNextAccountRequest) {
+      this.state.scenarios.failNextAccountRequest = false
+      this.saveToStorage()
+      throw new Error('FALHA_CONTA: Erro simulado ao alterar senha.')
+    }
+
+    const user = this.state.users.find((u) => u.id === userId)
+    if (!user) {
+      throw new Error('Usuário não encontrado.')
+    }
+
+    const expectedCurrentHash = mockHashPassword(currentPass)
+    if (user.passwordHash !== expectedCurrentHash && user.passwordHash !== currentPass) {
+      throw new Error('A senha atual informada está incorreta.')
+    }
+
+    if (!newPass || newPass.length < 6) {
+      throw new Error('A nova senha deve ter no mínimo 6 caracteres.')
+    }
+
+    user.passwordHash = mockHashPassword(newPass)
+    this.saveToStorage()
+  }
+
+
+  public getUserOrders(userId: string, status?: OrderStatus): Order[] {
+    if (!this.state.orders) return []
+    const orders = Object.values(this.state.orders).filter((o) => o.userId === userId)
+    const filtered = status ? orders.filter((o) => o.status === status) : orders
+    return filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  }
+
+
+  public getUserWallets(userId: string): Wallet[] {
+    if (!this.state.wallets) this.state.wallets = { ...initialWallets }
+    return this.state.wallets[userId] ?? []
+  }
+
+  public addWallet(userId: string, payload: AddWalletPayload): Wallet {
+    if (this.state.scenarios.failNextWalletRequest) {
+      this.state.scenarios.failNextWalletRequest = false
+      this.saveToStorage()
+      throw new Error('FALHA_CARTEIRA: Erro simulado ao adicionar carteira.')
+    }
+
+    const addr = (payload.address || '').trim()
+    if (!addr.startsWith('0x') || addr.length < 10) {
+      throw new Error('Endereço de carteira inválido. Deve iniciar com 0x.')
+    }
+
+    if (!this.state.wallets) this.state.wallets = { ...initialWallets }
+    const userWallets = this.state.wallets[userId] ?? []
+
+    if (userWallets.some((w) => w.address.toLowerCase() === addr.toLowerCase())) {
+      throw new Error('WALLET_EXISTS: Esta carteira já está vinculada à sua conta.')
+    }
+
+    const isPrimary = userWallets.length === 0 ? true : Boolean(payload.isPrimary)
+
+    if (isPrimary) {
+      for (const w of userWallets) {
+        w.isPrimary = false
+      }
+    }
+
+    const newWallet: Wallet = {
+      id: `w-${userId}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      userId,
+      address: addr,
+      label: payload.label?.trim() || 'Carteira Pessoal',
+      provider: payload.provider ?? 'metamask',
+      isPrimary,
+      createdAt: new Date().toISOString(),
+    }
+
+    userWallets.push(newWallet)
+    this.state.wallets[userId] = userWallets
+    this.saveToStorage()
+    return newWallet
+  }
+
+  public setPrimaryWallet(userId: string, walletId: string): Wallet {
+    if (this.state.scenarios.failNextWalletRequest) {
+      this.state.scenarios.failNextWalletRequest = false
+      this.saveToStorage()
+      throw new Error('FALHA_CARTEIRA: Erro simulado ao alterar carteira principal.')
+    }
+
+    if (!this.state.wallets) this.state.wallets = { ...initialWallets }
+    const userWallets = this.state.wallets[userId] ?? []
+    const target = userWallets.find((w) => w.id === walletId)
+    if (!target) {
+      throw new Error('Carteira não encontrada.')
+    }
+
+    for (const w of userWallets) {
+      w.isPrimary = false
+    }
+    target.isPrimary = true
+    this.saveToStorage()
+    return target
+  }
+
+  public removeWallet(userId: string, walletId: string): boolean {
+    if (this.state.scenarios.failNextWalletRequest) {
+      this.state.scenarios.failNextWalletRequest = false
+      this.saveToStorage()
+      throw new Error('FALHA_CARTEIRA: Erro simulado ao remover carteira.')
+    }
+
+    if (!this.state.wallets) this.state.wallets = { ...initialWallets }
+    const userWallets = this.state.wallets[userId] ?? []
+    const target = userWallets.find((w) => w.id === walletId)
+    if (!target) {
+      throw new Error('Carteira não encontrada.')
+    }
+
+    if (target.isPrimary) {
+      throw new Error('PRIMARY_CANNOT_BE_REMOVED: A carteira principal não pode ser removida. Defina outra carteira como principal antes de remover esta.')
+    }
+
+    this.state.wallets[userId] = userWallets.filter((w) => w.id !== walletId)
+    this.saveToStorage()
+    return true
+  }
+
+  public setFailNextAccount(fail: boolean): void {
+    this.state.scenarios.failNextAccountRequest = fail
+    this.saveToStorage()
+  }
+
+  public checkAndConsumeFailNextAccount(): boolean {
+    if (this.state.scenarios.failNextAccountRequest) {
+      this.state.scenarios.failNextAccountRequest = false
+      this.saveToStorage()
+      return true
+    }
+    return false
+  }
+
+  public setFailNextWallet(fail: boolean): void {
+    this.state.scenarios.failNextWalletRequest = fail
+    this.saveToStorage()
+  }
+
+  public checkAndConsumeFailNextWallet(): boolean {
+    if (this.state.scenarios.failNextWalletRequest) {
+      this.state.scenarios.failNextWalletRequest = false
+      this.saveToStorage()
+      return true
+    }
+    return false
+  }
+
   public setTimeoutAfterOrderCreate(timeout: boolean): void {
     this.state.scenarios.timeoutAfterOrderCreate = timeout
     this.saveToStorage()
@@ -914,6 +1199,125 @@ class MockStore {
   public setNextPaymentResult(result: OrderStatus | null): void {
     this.state.scenarios.nextPaymentResult = result
     this.saveToStorage()
+  }
+
+  public seedDemoOrders(userId = 'user-ana'): Order[] {
+    if (!this.state.orders) this.state.orders = {}
+
+    const confirmedOrder: Order = {
+      id: 'ord-ana-conf-1',
+      userId,
+      idempotencyKey: 'idem-ana-conf-1',
+      status: 'confirmed',
+      createdAt: '2026-03-01T10:00:00.000Z',
+      confirmedAt: '2026-03-01T10:02:00.000Z',
+      transactionHash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+      items: [
+        {
+          id: 'item-conf-1',
+          nftId: 'nft-aurora-017',
+          editionId: 'ed-1',
+          name: 'Aurora #017',
+          collectionName: 'Coleção Aurora',
+          editionName: 'Primeira Edição',
+          editionNumber: '#017',
+          imageUrl: '/nfts/aurora.svg',
+          quantity: 1,
+          unitPriceEth: '1.275000000000000000',
+          subtotalEth: '1.275000000000000000',
+        },
+      ],
+      subtotalEth: '1.275000000000000000',
+      discountEth: '0.000000000000000000',
+      networkFeeEth: '0.002500000000000000',
+      totalEth: '1.277500000000000000',
+      coupon: null,
+      buyer: {
+        name: 'Ana Silva',
+        email: 'ana@exemplo.com',
+        walletAddress: '0x71C8564E3b3026D327732168434757342898a49B',
+        network: 'ethereum',
+      },
+      version: 1,
+    }
+
+    const pendingOrder: Order = {
+      id: 'ord-ana-pend-2',
+      userId,
+      idempotencyKey: 'idem-ana-pend-2',
+      status: 'pending',
+      createdAt: '2026-03-02T11:00:00.000Z',
+      items: [
+        {
+          id: 'item-pend-2',
+          nftId: 'nft-flora-006',
+          editionId: 'ed-2',
+          name: 'Flora Botanical #006',
+          collectionName: 'Flora Botanical',
+          editionName: 'Standard Edition',
+          editionNumber: '#006',
+          imageUrl: '/nfts/flora.svg',
+          quantity: 2,
+          unitPriceEth: '0.450000000000000000',
+          subtotalEth: '0.900000000000000000',
+        },
+      ],
+      subtotalEth: '0.900000000000000000',
+      discountEth: '0.000000000000000000',
+      networkFeeEth: '0.002500000000000000',
+      totalEth: '0.902500000000000000',
+      coupon: null,
+      buyer: {
+        name: 'Ana Silva',
+        email: 'ana@exemplo.com',
+        walletAddress: '0x71C8564E3b3026D327732168434757342898a49B',
+        network: 'ethereum',
+      },
+      version: 1,
+    }
+
+    const declinedOrder: Order = {
+      id: 'ord-ana-decl-3',
+      userId,
+      idempotencyKey: 'idem-ana-decl-3',
+      status: 'declined',
+      declineReason: 'Simulação de pagamento recusada pela carteira.',
+      createdAt: '2026-03-03T12:00:00.000Z',
+      items: [
+        {
+          id: 'item-decl-3',
+          nftId: 'nft-afterlight-003',
+          editionId: 'ed-3',
+          name: 'Afterlight Horizon #003',
+          collectionName: 'Afterlight',
+          editionName: 'Collector Edition',
+          editionNumber: '#003',
+          imageUrl: '/nfts/afterlight.svg',
+          quantity: 1,
+          unitPriceEth: '2.500000000000000000',
+          subtotalEth: '2.500000000000000000',
+        },
+      ],
+      subtotalEth: '2.500000000000000000',
+      discountEth: '0.000000000000000000',
+      networkFeeEth: '0.002500000000000000',
+      totalEth: '2.502500000000000000',
+      coupon: null,
+      buyer: {
+        name: 'Ana Silva',
+        email: 'ana@exemplo.com',
+        walletAddress: '0x71C8564E3b3026D327732168434757342898a49B',
+        network: 'ethereum',
+      },
+      version: 1,
+    }
+
+    this.state.orders[confirmedOrder.id] = confirmedOrder
+    this.state.orders[pendingOrder.id] = pendingOrder
+    this.state.orders[declinedOrder.id] = declinedOrder
+    this.saveToStorage()
+
+    return [confirmedOrder, pendingOrder, declinedOrder]
   }
 }
 

@@ -68,6 +68,7 @@ export type User = {
   name: string
   email: string
   avatarUrl?: string
+  bio?: string
 }
 
 export type AuthResponse = {
@@ -91,6 +92,45 @@ export type FavoriteMutationResponse = {
 
 export type AccountResponse = {
   user: User
+}
+
+export type UpdateProfilePayload = {
+  name?: string
+  bio?: string
+  avatarUrl?: string
+}
+
+export type ChangePasswordPayload = {
+  currentPassword?: string
+  newPassword?: string
+}
+
+export type WalletProvider = 'metamask' | 'coinbase' | 'rainbow' | 'other'
+
+export type Wallet = {
+  id: string
+  userId: string
+  address: string
+  label?: string
+  provider: WalletProvider
+  isPrimary: boolean
+  createdAt: string
+}
+
+export type AddWalletPayload = {
+  address: string
+  label?: string
+  provider?: WalletProvider
+  isPrimary?: boolean
+}
+
+export type WalletsResponse = {
+  items: Wallet[]
+}
+
+export type OrdersListResponse = {
+  items: Order[]
+  total: number
 }
 
 export type LoginPayload = {

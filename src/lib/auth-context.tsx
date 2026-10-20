@@ -48,6 +48,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       queryClient.removeQueries({ queryKey: ['favorites'] })
       queryClient.removeQueries({ queryKey: ['account'] })
+      queryClient.removeQueries({ queryKey: ['orders'] })
+      queryClient.removeQueries({ queryKey: ['wallets'] })
       queryClient.removeQueries({ queryKey: ['cart'] })
       queryClient.removeQueries({ queryKey: ['cart', 'quote'] })
       queryClient.setQueryData(['auth', 'session'], null)
@@ -74,12 +76,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         await http.post('/api/cart/merge', { guestId })
         resetGuestId()
-      } catch (err) {
-        console.warn('Falha ao mesclar carrinho do visitante', err)
-      }
+      } catch  {
+      void 0
+    }
     }
 
     queryClient.removeQueries({ queryKey: ['favorites'] })
+    queryClient.removeQueries({ queryKey: ['account'] })
+    queryClient.removeQueries({ queryKey: ['orders'] })
+    queryClient.removeQueries({ queryKey: ['wallets'] })
     queryClient.removeQueries({ queryKey: ['cart'] })
     queryClient.removeQueries({ queryKey: ['cart', 'quote'] })
     queryClient.setQueryData(['auth', 'session'], response.data.user)
@@ -96,12 +101,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         await http.post('/api/cart/merge', { guestId })
         resetGuestId()
-      } catch (err) {
-        console.warn('Falha ao mesclar carrinho do visitante', err)
-      }
+      } catch  {
+      void 0
+    }
     }
 
     queryClient.removeQueries({ queryKey: ['favorites'] })
+    queryClient.removeQueries({ queryKey: ['account'] })
+    queryClient.removeQueries({ queryKey: ['orders'] })
+    queryClient.removeQueries({ queryKey: ['wallets'] })
     queryClient.removeQueries({ queryKey: ['cart'] })
     queryClient.removeQueries({ queryKey: ['cart', 'quote'] })
     queryClient.setQueryData(['auth', 'session'], response.data.user)
@@ -110,14 +118,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     try {
       await http.post('/api/auth/logout')
-    } catch {
-      // Ignore network errors on logout
+    } catch  {
+      void 0
     } finally {
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem(AUTH_TOKEN_KEY)
       }
       queryClient.removeQueries({ queryKey: ['favorites'] })
       queryClient.removeQueries({ queryKey: ['account'] })
+      queryClient.removeQueries({ queryKey: ['orders'] })
+      queryClient.removeQueries({ queryKey: ['wallets'] })
       queryClient.removeQueries({ queryKey: ['cart'] })
       queryClient.removeQueries({ queryKey: ['cart', 'quote'] })
       queryClient.setQueryData(['auth', 'session'], null)

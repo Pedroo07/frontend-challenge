@@ -19,8 +19,8 @@ export function emitNftUpdateToClients(event: NftUpdatedEvent) {
   for (const client of activeClients) {
     try {
       client.emit('nft.updated', event)
-    } catch (err) {
-      console.warn('Falha ao emitir nft.updated para cliente socket', err)
+    } catch  {
+      void 0
     }
   }
 }
@@ -29,12 +29,11 @@ export function emitOrderUpdateToClients(event: OrderUpdatedEvent) {
   for (const client of activeClients) {
     try {
       client.emit('order.updated', event)
-    } catch (err) {
-      console.warn('Falha ao emitir order.updated para cliente socket', err)
+    } catch  {
+      void 0
     }
   }
 }
-
 
 export const socketHandlers = [
   socketLink.addEventListener('connection', (connection) => {
