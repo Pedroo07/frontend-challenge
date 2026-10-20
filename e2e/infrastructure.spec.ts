@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-test('REST e Socket.IO simulados chegam à interface sem falha de execução', async ({ page }) => {
+test('infraestrutura: interceptação MSW e transporte WebSocket operam corretamente', async ({ page }) => {
   const pageErrors: string[] = []
   page.on('pageerror', (error) => pageErrors.push(error.message))
 

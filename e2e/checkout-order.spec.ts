@@ -13,6 +13,7 @@ async function resetEnvironment(page: Page) {
 
 async function loginAsAna(page: Page) {
   await page.goto('/login')
+  await expect(page.getByRole('heading', { name: 'Entrar na sua conta' })).toBeVisible()
   await page.getByLabel('E-mail').fill('ana@exemplo.com')
   await page.getByLabel('Senha').fill('Password123!')
   await page.getByRole('button', { name: 'Entrar' }).click()
@@ -50,13 +51,13 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await expect(page).toHaveURL(/\/checkout/)
     await expect(page.getByRole('heading', { name: 'Checkout e Pagamento' })).toBeVisible()
 
-    // Pre-filled buyer info
+
     await expect(page.getByTestId('buyer-name-input')).toHaveValue('Ana Silva')
     await expect(page.getByTestId('buyer-email-input')).toHaveValue('ana@exemplo.com')
 
-    // Cart items in summary
+
     await expect(page.getByText('Aurora #017')).toBeVisible()
-    // 1.275 subtotal + 0.0025 network fee = 1.2775 ETH
+
     await expect(page.getByTestId('order-summary-total')).toContainText('1.2775')
   })
 
@@ -65,11 +66,11 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await addAuroraToCart(page)
     await page.goto('/checkout')
 
-    // Limpa o nome do comprador
+
     const nameInput = page.getByTestId('buyer-name-input')
     await nameInput.fill('')
 
-    // Tenta submeter sem conectar a carteira
+
     const confirmBtn = page.getByTestId('confirm-purchase-btn')
     await confirmBtn.click()
 
@@ -82,21 +83,21 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await addAuroraToCart(page)
     await page.goto('/checkout')
 
-    // Conexão simulada com MetaMask
+
     const connectBtn = page.getByTestId('connect-wallet-btn')
     await connectBtn.click()
 
     await expect(page.getByTestId('wallet-connection-status')).toHaveText('Carteira Conectada')
     await expect(page.getByTestId('buyer-wallet-address')).toHaveText('0x71C3...98B2')
 
-    // Troca de rede para Solana (incompatível)
+
     const networkSelect = page.getByTestId('network-select')
     await networkSelect.selectOption('solana')
 
     await expect(page.getByText(/rede selecionada é incompatível/i)).toBeVisible()
     await expect(page.getByTestId('confirm-purchase-btn')).toBeDisabled()
 
-    // Troca para Polygon (compatível)
+
     await networkSelect.selectOption('polygon')
     await expect(page.getByText(/rede selecionada é incompatível/i)).not.toBeVisible()
     await expect(page.getByTestId('confirm-purchase-btn')).toBeEnabled()
@@ -106,7 +107,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await loginAsAna(page)
     await addAuroraToCart(page)
 
-    // Esgota o estoque de Aurora simulado
+
     await page.evaluate(async () => {
       await fetch('/api/_mock/scenarios/emit-nft-update', {
         method: 'POST',
@@ -116,7 +117,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     })
 
     await page.goto('/carrinho')
-    // Botão de avançar deve estar desabilitado
+
     await expect(page.getByRole('button', { name: /ajuste os itens para continuar/i })).toBeDisabled()
   })
 
@@ -125,11 +126,11 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await addAuroraToCart(page)
     await page.goto('/checkout')
 
-    // Conecta carteira
+
     await page.getByTestId('connect-wallet-btn').click()
     await expect(page.getByTestId('wallet-connection-status')).toHaveText('Carteira Conectada')
 
-    // Simula alteração de preço do NFT via Socket.IO
+
     await page.evaluate(async () => {
       await fetch('/api/_mock/scenarios/emit-nft-update', {
         method: 'POST',
@@ -138,11 +139,11 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
       })
     })
 
-    // Deve exibir o alerta de alteração de cotação
+
     await expect(page.getByTestId('quote-change-alert')).toBeVisible({ timeout: 10_000 })
     await expect(page.getByTestId('confirm-purchase-btn')).toContainText('Aceite a nova cotação')
 
-    // Clica no botão para aceitar a nova cotação
+
     await page.getByTestId('accept-new-quote-btn').click()
     await expect(page.getByTestId('quote-change-alert')).not.toBeVisible()
     await expect(page.getByTestId('confirm-purchase-btn')).toContainText('Confirmar e Finalizar Compra')
@@ -156,7 +157,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await page.getByTestId('connect-wallet-btn').click()
     await expect(page.getByTestId('wallet-connection-status')).toHaveText('Carteira Conectada')
 
-    // Reduz o estoque para 0
+
     await page.evaluate(async () => {
       await fetch('/api/_mock/scenarios/emit-nft-update', {
         method: 'POST',
@@ -172,7 +173,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await loginAsAna(page)
     await addAuroraToCart(page)
 
-    // Aplica cupom PROMO10 no carrinho
+
     await page.goto('/carrinho')
     await page.getByLabel('Cupom de desconto').fill('PROMO10')
     await page.getByRole('button', { name: 'Aplicar' }).click()
@@ -180,7 +181,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
 
     await page.goto('/checkout')
     await expect(page.getByText(/desconto.*promo10/i)).toBeVisible()
-    // Subtotal 1.275 - 10% (0.1275) + 0.0025 = 1.15 ETH
+
     await expect(page.getByTestId('order-summary-total')).toContainText('1.15')
   })
 
@@ -194,7 +195,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     const confirmBtn = page.getByTestId('confirm-purchase-btn')
     await confirmBtn.click()
 
-    // Deve redirecionar para /pedidos/$orderId e exibir o banner de confirmação
+
     await expect(page).toHaveURL(/\/pedidos\/ord-/)
     await expect(page.getByTestId('order-confirmed-banner')).toBeVisible()
     await expect(page.getByTestId('transaction-hash')).toBeVisible()
@@ -206,7 +207,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await loginAsAna(page)
     await addAuroraToCart(page)
 
-    // Configura o próximo pagamento para ficar pendente
+
     await page.evaluate(async () => {
       await fetch('/api/_mock/scenarios/order-payment-result', {
         method: 'POST',
@@ -219,7 +220,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await connectWallet(page)
     await page.getByTestId('confirm-purchase-btn').click()
 
-    // Deve exibir o banner de pagamento pendente
+
     await expect(page.getByTestId('payment-status-pending')).toBeVisible()
     await expect(page.getByText(/aguardando confirmação em tempo real/i)).toBeVisible()
   })
@@ -228,7 +229,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await loginAsAna(page)
     await addAuroraToCart(page)
 
-    // Configura o pagamento para ser recusado
+
     await page.evaluate(async () => {
       await fetch('/api/_mock/scenarios/order-payment-result', {
         method: 'POST',
@@ -242,7 +243,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await page.getByTestId('confirm-purchase-btn').click()
 
     await expect(page.getByTestId('payment-declined-alert')).toBeVisible()
-    // Itens continuam no carrinho
+
     await expect(page.getByTestId('cart-badge-count')).toHaveText('1')
   })
 
@@ -254,10 +255,10 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await connectWallet(page)
     const confirmBtn = page.getByTestId('confirm-purchase-btn')
 
-    // Clica duas vezes rapidamente
+
     await confirmBtn.dblclick()
 
-    // Deve redirecionar para um único pedido confirmado
+
     await expect(page).toHaveURL(/\/pedidos\/ord-/)
     await expect(page.getByTestId('order-confirmed-banner')).toBeVisible()
   })
@@ -266,7 +267,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await loginAsAna(page)
     await addAuroraToCart(page)
 
-    // Ativa cenário de timeout após criação no servidor
+
     await page.evaluate(async () => {
       await fetch('/api/_mock/scenarios/order-timeout-after-create', {
         method: 'POST',
@@ -279,15 +280,15 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await connectWallet(page)
     await page.getByTestId('confirm-purchase-btn').click()
 
-    // Exibe o erro de timeout com botão de retry
+
     await expect(page.getByTestId('checkout-error-alert')).toBeVisible()
     const retryBtn = page.getByTestId('retry-after-timeout-btn')
     await expect(retryBtn).toBeVisible()
 
-    // Clica para tentar novamente com a mesma chave
+
     await retryBtn.click()
 
-    // Recupera o mesmo pedido criado no servidor e confirma
+
     await expect(page).toHaveURL(/\/pedidos\/ord-/)
     await expect(page.getByTestId('order-confirmed-banner')).toBeVisible()
   })
@@ -353,7 +354,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
         body: JSON.stringify(payload1),
       })
 
-      // Segunda requisição com payload diferente para a mesma chave
+
       const payload2 = { ...payload1, totalEth: '2.5525' }
       const res2 = await fetch('/api/orders', {
         method: 'POST',
@@ -376,7 +377,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await expect(page).toHaveURL(/\/pedidos\/ord-/)
     await expect(page.getByTestId('order-confirmed-banner')).toBeVisible()
 
-    // Recarrega a página
+
     await page.reload()
 
     await expect(page.getByTestId('order-confirmed-banner')).toBeVisible()
@@ -387,7 +388,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await loginAsAna(page)
     await addAuroraToCart(page)
 
-    // Cria pedido pendente
+
     await page.evaluate(async () => {
       await fetch('/api/_mock/scenarios/order-payment-result', {
         method: 'POST',
@@ -402,7 +403,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
 
     await expect(page.getByTestId('payment-status-pending')).toBeVisible()
 
-    // Emite evento order.updated via Socket.IO
+
     await page.evaluate(async () => {
       const stored = JSON.parse(window.localStorage.getItem('nft_mock_store_v1') || '{}')
       const orderIds = Object.keys(stored.orders || {})
@@ -419,7 +420,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
       })
     })
 
-    // Deve reagir ao evento e redirecionar para a confirmação
+
     await expect(page).toHaveURL(/\/pedidos\/ord-/, { timeout: 10_000 })
     await expect(page.getByTestId('order-confirmed-banner')).toBeVisible()
   })
@@ -432,7 +433,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await page.getByTestId('confirm-purchase-btn').click()
     await expect(page).toHaveURL(/\/pedidos\/ord-/)
 
-    // Emite evento com versão 1 (antiga/duplicada)
+
     const currentUrl = page.url()
     const orderId = currentUrl.split('/pedidos/')[1]
 
@@ -448,7 +449,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
       })
     }, orderId)
 
-    // O status confirmado deve permanecer intacto
+
     await expect(page.getByTestId('order-confirmed-banner')).toBeVisible()
   })
 
@@ -462,7 +463,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await expect(page).toHaveURL(/\/pedidos\/ord-/)
     await expect(page.getByTestId('order-confirmed-banner')).toBeVisible()
 
-    // Simula desconexão e reconexão
+
     await page.evaluate(() => {
       window.dispatchEvent(new Event('offline'))
       window.dispatchEvent(new Event('online'))
@@ -474,15 +475,15 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
   test('19. garantir que somente as quantidades confirmadas sejam removidas do carrinho', async ({ page }) => {
     await loginAsAna(page)
 
-    // Adiciona Aurora #017 (Open Edition - quantidade 1)
+
     await addAuroraToCart(page)
 
-    // Adiciona Flora #006
+
     await page.goto('/nfts/nft-flora-006')
     await page.getByRole('button', { name: /adicionar.*ao carrinho/i }).click()
     await expect(page.getByTestId('cart-badge-count')).toHaveText('2')
 
-    // Conclui a compra
+
     await page.goto('/checkout')
     await connectWallet(page)
     await page.getByTestId('confirm-purchase-btn').click()
@@ -490,7 +491,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await expect(page).toHaveURL(/\/pedidos\/ord-/)
     await expect(page.getByTestId('order-confirmed-banner')).toBeVisible()
 
-    // O carrinho deve ter sido esvaziado das quantidades compradas
+
     await page.goto('/carrinho')
     await expect(page.getByRole('heading', { name: 'Seu carrinho está vazio' })).toBeVisible()
   })
@@ -505,7 +506,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await expect(page).toHaveURL(/\/pedidos\/ord-/)
     await expect(page.getByTestId('receipt-item-subtotal-nft-aurora-017')).toContainText('1.275')
 
-    // Altera o preço de Aurora no catálogo para 3.500 ETH
+
     await page.evaluate(async () => {
       await fetch('/api/_mock/scenarios/emit-nft-update', {
         method: 'POST',
@@ -514,10 +515,10 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
       })
     })
 
-    // Recarrega o recibo
+
     await page.reload()
 
-    // O valor no recibo imutável deve permanecer 1.275 ETH
+
     await expect(page.getByTestId('receipt-item-subtotal-nft-aurora-017')).toContainText('1.275')
     await expect(page.getByTestId('receipt-total')).toContainText('1.2775')
   })
@@ -528,7 +529,7 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
     await page.goto('/checkout')
     await expect(page.getByRole('heading', { name: 'Checkout e Pagamento' })).toBeVisible()
 
-    // Simula expiração da sessão e consome o cenário com requisição autenticada
+
     await page.evaluate(async () => {
       await fetch('/api/_mock/scenarios/expire-session', { method: 'POST' })
       const token = window.localStorage.getItem('nft_auth_token')
@@ -540,16 +541,16 @@ test.describe('Etapa 5 — Checkout, pagamento simulado e confirmação de pedid
       }
     })
 
-    // Deve redirecionar para login com redirect preservado
+
     await page.waitForURL(/\/login\?redirect=.*checkout/)
     await expect(page.getByRole('heading', { name: 'Entrar na sua conta' })).toBeVisible()
 
-    // Faz login novamente
+
     await page.getByLabel('E-mail').fill('ana@exemplo.com')
     await page.getByLabel('Senha').fill('Password123!')
     await page.getByRole('button', { name: 'Entrar' }).click()
 
-    // Deve retornar para o checkout com carrinho preservado!
+
     await page.waitForURL((url) => url.pathname === '/checkout')
     await expect(page.getByRole('heading', { name: 'Checkout e Pagamento' })).toBeVisible()
   })
