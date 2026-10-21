@@ -2,6 +2,9 @@
 
 Aplicação web completa para exploração, simulação de compra e gestão de obras de arte digital em NFT, construída com arquitetura moderna orientada a contratos estritos, precisão aritmética em ETH (sem ponto flutuante), sincronização em tempo real via WebSocket e conformidade com os mais altos padrões de acessibilidade, performance e testes automatizados.
 
+ **Aplicação Publicada (Live Demo):** [https://frontend-challenge-pedroo.vercel.app](https://frontend-challenge-pedroo.vercel.app)  
+ **Documentação de Arquitetura:** [ARCHITECTURE.md](./ARCHITECTURE.md)
+
 ---
 
 ## 1. Guia de Inicialização Rápida (Setup)
